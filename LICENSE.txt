@@ -1,0 +1,29 @@
+
+LICENCIA DE USO DEL SOFTWARE RallyCert
+
+Este software ha sido desarrollado por José Alberto Pérez Burgos para el evento Rally de la Niñez Científica y Expo STEM, organizado por la Universidad de Sonora, con el propósito de facilitar la generación y envío de constancias de participación de manera automatizada y eficiente.
+
+CONDICIONES DE USO
+
+- El software está destinado exclusivamente para uso interno por parte del personal autorizado de la Universidad de Sonora en el marco del evento mencionado.
+- No se permite la distribución, copia, modificación ni integración del software en otros sistemas sin autorización expresa por escrito.
+- Se permite la personalización del contenido de los correos y plantillas dentro del entorno de uso autorizado.
+
+LIMITACIÓN DE RESPONSABILIDAD
+
+Este software se proporciona “tal cual”, sin garantías de ningún tipo, expresas o implícitas. La Universidad de Sonora no se hace responsable por daños directos o indirectos derivados del uso, mal uso o imposibilidad de uso del sistema.
+
+SOPORTE Y MANTENIMIENTO
+
+El software no cuenta con soporte técnico oficial ni garantía de actualizaciones. Cualquier mejora o mantenimiento será realizado de forma interna por el equipo organizador del evento.
+
+VIGENCIA
+
+Esta licencia entra en vigor a partir del 01 de October de 2025 y se mantendrá vigente mientras el software sea utilizado en el contexto del evento Rally de la Niñez Científica y Expo STEM.
+
+CONTACTO
+
+Para solicitudes de autorización, soporte o información adicional, favor de contactar a: alberto.perez@unison.mx
+
+Copyright © 2025 Universidad de Sonora
+Todos los derechos reservados.

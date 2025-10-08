@@ -1,0 +1,10 @@
+PyQt6
+PyMuPDF
+python-docx
+python-pptx
+pandas
+openpyxl
+yagmail
+comtypes
+requests
+Pillow
