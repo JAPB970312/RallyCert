@@ -5,7 +5,7 @@ import requests
 
 # Configuración del repositorio corregida
 REPO_OWNER = "JAPB970312"
-REPO_NAME = "Generador_Constancias"
+REPO_NAME = "RallyCert"
 BRANCH = "main"
 
 def get_remote_commit_sha():
