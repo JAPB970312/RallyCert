@@ -13,6 +13,12 @@ REPO_NAME = "RallyCert"
 BRANCH = "main"
 COMMIT_FILE = "commit.sha"
 
+def get_app_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+COMMIT_FILE = os.path.join(get_app_dir(), "commit.sha")
 
 class UpdateThread(QThread):
     """Hilo para manejar la actualización en segundo plano"""
@@ -167,7 +173,7 @@ class UpdateThread(QThread):
                 dst = os.path.join(self.target_dir, item)
                 
                 # Si es un archivo excluido, saltar
-                if os.path.isfile(src) and item in exclude_files:
+                if item in exclude_files or os.path.isfile(src) and item in exclude_files:
                     continue
                 
                 try:
@@ -232,9 +238,7 @@ def auto_update(app=None, target_dir="."):
     global _update_thread
     
     # Si estamos en un ejecutable empaquetado, no verificar actualizaciones automáticamente
-    if getattr(sys, 'frozen', False):
-        print("📦 Ejecutable empaquetado - omitiendo actualizaciones automáticas")
-        return
+    
     
     try:
         # Verificar actualización de manera síncrona primero
