@@ -8,3 +8,7 @@ yagmail
 comtypes
 requests
 Pillow
+cryptography
+qrcode[pil]
+PyPDF2
+reportlab
