@@ -4,6 +4,7 @@ import fitz
 import glob
 from PyQt6.QtCore import QThread, pyqtSignal
 from document_processor import get_processor
+from signature import sign_and_embed, ensure_keys, PRIVATE_KEY_PATH, PUBLIC_KEY_PATH
 
 class Worker(QThread):
     progress = pyqtSignal(int)
@@ -21,53 +22,53 @@ class Worker(QThread):
         self.export_mode = export_mode
         self.is_cancelled = False
 
+        # Ensure keys exist (first-run)
+        try:
+            ensure_keys(PRIVATE_KEY_PATH, PUBLIC_KEY_PATH)
+        except Exception as e:
+            # no queremos detener el hilo por fallo en keys; lo registramos
+            print(f"[signature] Warning: no se pudieron generar/validar llaves: {e}")
+
     def run(self):
         try:
             total_files = len(self.excel_data)
             self.log.emit(f"Iniciando generación de {total_files} constancias...")
-            
-            # Procesamiento simple (sin multiprocessing)
             self.run_single_thread(total_files)
-
         except Exception as e:
             self.finished.emit(f"Ocurrió un error crítico: {e}")
 
     def run_single_thread(self, total_files):
-        """Procesamiento en hilo único para todos los formatos"""
-        
         combined_doc = fitz.open() if self.export_mode == "Un solo PDF combinado" else None
         success_count = 0
-        temp_files_to_cleanup = []  # Lista para archivos temporales
-        
+        temp_files_to_cleanup = []
+
         try:
             used_filenames = set()
             for i, record in enumerate(self.excel_data):
                 if self.is_cancelled:
                     self.log.emit("Proceso cancelado por el usuario.")
                     break
-                
+
                 try:
-                    # Crear procesador para cada documento
                     processor = get_processor(self.template_path)
                     data_map = {
                         placeholder: record.get(column_name, '') 
                         for placeholder, column_name in self.placeholder_map.items()
                     }
-                    
-                    
-                    # Determinar el nombre base usando la columna seleccionada por el usuario si está disponible
+
                     if getattr(self, 'filename_column', None):
                         name_for_file = record.get(self.filename_column, '') or data_map.get('{{TEXT_1}}', f'Constancia_{i+1}')
                     else:
                         name_for_file = data_map.get('{{TEXT_1}}', f'Constancia_{i+1}')
-                    # Normalizar el nombre (usar el método del procesador si está disponible)
+
                     try:
                         clean_name = processor._get_clean_filename(name_for_file)
                     except Exception:
                         clean_name = "".join(c for c in str(name_for_file) if c.isalnum() or c in (' ', '-', '_')).rstrip()
+
                     if not clean_name:
                         clean_name = f'Constancia_{i+1}'
-                    # Asegurar unicidad: si ya existe, añadir sufijo incremental "(1)", "(2)", ...
+
                     base_name = clean_name
                     count = 0
                     candidate = base_name
@@ -79,23 +80,37 @@ class Worker(QThread):
                         candidate = f"{base_name} ({count})"
                     used_filenames.add(candidate)
                     output_filename = os.path.join(self.output_dir, f"{candidate}.pdf")
+
+                    # Generar documento y guardarlo como PDF
                     processor.process(data_map, self.font_map)
                     processor.save_as_pdf(output_filename)
 
-                    
+                    # --- FIRMAR Y EMBEDIR AUTOMÁTICAMENTE ---
+                    cert_data = {
+                        "nombre": data_map.get("{{TEXT_1}}", ""),
+                        "evento": data_map.get("{{TEXT_2}}", ""),
+                        "folio": f"RALLY-{int(i+1):06d}",
+                    }
+                    try:
+                        # Firmar el documento (sobrescribe el mismo archivo)
+                        metadata = sign_and_embed(output_filename, output_filename, cert_data)
+                        self.log.emit(f"🔐 Firma añadida: {os.path.basename(output_filename)}")
+                    except Exception as e:
+                        self.log.emit(f"⚠️ No se pudo firmar {os.path.basename(output_filename)}: {e}")
+
+                    # Si estamos combinando PDFs, insertar después de firmar
                     if self.export_mode == "Un solo PDF combinado":
                         with fitz.open(output_filename) as temp_doc:
                             combined_doc.insert_pdf(temp_doc)
-                        # Marcar para limpieza
                         temp_files_to_cleanup.append(output_filename)
 
                     success_count += 1
                     self.log.emit(f"✅ ({i+1}/{total_files}) Generada para: {name_for_file}")
                     self.progress.emit(int(((i + 1) / total_files) * 100))
-                    
+
                 except Exception as e:
                     self.log.emit(f"❌ Error en registro {i+1}: {str(e)}")
-            
+
             if not self.is_cancelled:
                 if self.export_mode == "Un solo PDF combinado":
                     final_path = os.path.join(self.output_dir, "Constancias_Combinadas.pdf")
@@ -106,28 +121,14 @@ class Worker(QThread):
                     self.finished.emit(f"¡Proceso completado! Se generaron {success_count} de {total_files} constancias.")
             else:
                 self.finished.emit("Proceso detenido por el usuario.")
-                
+
         finally:
-            # LIMPIEZA FINAL DE ARCHIVOS TEMPORALES
-            self._cleanup_temp_files(temp_files_to_cleanup)
-            
-            # Cerrar documentos combinados si existen
+            # limpieza de temporales
+            for temp in temp_files_to_cleanup:
+                try:
+                    if os.path.exists(temp):
+                        os.remove(temp)
+                except Exception:
+                    pass
             if combined_doc:
                 combined_doc.close()
-        
-    def _cleanup_temp_files(self, temp_files):
-        """Limpia archivos temporales con manejo de errores"""
-        cleaned_count = 0
-        for temp_file in temp_files:
-            try:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-                    cleaned_count += 1
-            except Exception as e:
-                self.log.emit(f"⚠️ No se pudo eliminar temporal: {os.path.basename(temp_file)}")
-        
-        if cleaned_count > 0:
-            self.log.emit(f"🧹 Se limpiaron {cleaned_count} archivos temporales")
-        
-    def stop(self):
-        self.is_cancelled = True
