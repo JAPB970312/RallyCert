@@ -4,10 +4,11 @@ import os
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QFileDialog, QSpinBox, QCheckBox, QProgressBar, QMessageBox, QTextEdit, QComboBox, QFormLayout,
-    QTabWidget, QSlider, QInputDialog, QScrollArea, QDialog, QLineEdit, QToolBar, QTextBrowser
+    QTabWidget, QSlider, QInputDialog, QScrollArea, QDialog, QLineEdit, QToolBar, QTextBrowser,
+    QSizePolicy, QGridLayout, QFrame
 )
 from PyQt6.QtGui import QPixmap, QImage, QIcon, QTextCursor, QTextCharFormat, QTextBlockFormat, QTextFormat, QFont
-from PyQt6.QtCore import Qt, QRegularExpression, QSize
+from PyQt6.QtCore import Qt, QRegularExpression, QSize, pyqtSignal
 from datetime import datetime
 
 # Importaciones de nuestros módulos
@@ -21,326 +22,247 @@ from validator import DocumentValidator
 from template_library import TemplateLibrary, TemplateCategory
 from performance_optimizer import PerformanceOptimizer
 
+class ModernButton(QPushButton):
+    """Botón moderno con efectos hover"""
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setMinimumHeight(35)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+class ModernLineEdit(QLineEdit):
+    """Campo de texto moderno"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(35)
+
+class ModernComboBox(QComboBox):
+    """Combo box moderno"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(35)
+
+class ModernLabel(QLabel):
+    """Etiqueta moderna"""
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setWordWrap(True)
+
+class SectionWidget(QFrame):
+    """Widget de sección con título y contenido"""
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.setFrameStyle(QFrame.Shape.NoFrame)
+        self.setStyleSheet("""
+            SectionWidget {
+                background-color: #ffffff;
+                border-radius: 8px;
+                padding: 12px;
+                margin: 5px;
+                border: 1px solid #e1e5e9;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        
+        title_label = ModernLabel(title)
+        title_label.setStyleSheet("""
+            font-weight: bold;
+            font-size: 13px;
+            color: #2c3e50;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #dee2e6;
+            margin-bottom: 8px;
+        """)
+        layout.addWidget(title_label)
+        
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.content_widget)
+    
+    def addWidget(self, widget):
+        self.content_layout.addWidget(widget)
+
 class EmailSenderDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("📤 Enviar Constancias por Correo")
-        self.setGeometry(200, 200, 800, 900)
+        self.setMinimumSize(800, 700)
+        
+        # Agregar botones de minimizar y maximizar
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint)
+        
         self.email_sender = None
         self.setup_ui()
 
     def setup_ui(self):
-        # FONDO BLANCO PARA TODO EL DIÁLOGO
+        # FONDO MODERNO CON COLOR AZUL CLARO
         self.setStyleSheet("""
             QDialog {
-                background-color: #ffffff;
-                color: #000000;
+                background-color: #f0f8ff;
+                color: #2c3e50;
             }
             QLabel {
                 background-color: transparent;
-                color: #000000;
+                color: #2c3e50;
             }
-            QLineEdit {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px;
+            QLineEdit, QComboBox, QSpinBox {
+                background-color: white;
+                color: #2c3e50;
+                border: 2px solid #e9ecef;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 14px;
             }
-            QComboBox {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
-            }
-            QSpinBox {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px;
-            }
-            QCheckBox {
-                background-color: transparent;
-                color: #000000;
-            }
-            QCheckBox::indicator {
-                width: 15px;
-                height: 15px;
-            }
-            QCheckBox::indicator:unchecked {
-                border: 1px solid #cccccc;
-                background-color: #ffffff;
-            }
-            QCheckBox::indicator:checked {
-                border: 1px solid #007bff;
-                background-color: #007bff;
+            QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+                border-color: #007bff;
             }
             QPushButton {
-                background-color: #f8f9fa;
-                color: #000000;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 8px 16px;
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 16px;
                 font-weight: bold;
+                font-size: 14px;
             }
             QPushButton:hover {
-                background-color: #e9ecef;
+                background-color: #5a6268;
             }
             QPushButton:pressed {
-                background-color: #dee2e6;
+                background-color: #545b62;
             }
             QTextEdit {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
+                background-color: white;
+                color: #2c3e50;
+                border: 2px solid #e9ecef;
+                border-radius: 6px;
                 padding: 8px;
-                font-family: Arial, sans-serif;
-                font-size: 11pt;
+                font-size: 14px;
             }
             QProgressBar {
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                background-color: #ffffff;
+                border: 2px solid #e9ecef;
+                border-radius: 6px;
+                background-color: white;
                 text-align: center;
-                color: #000000;
+                color: #2c3e50;
+                height: 20px;
             }
             QProgressBar::chunk {
                 background-color: #007bff;
-                border-radius: 3px;
-            }
-            QToolBar {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                spacing: 3px;
-                padding: 5px;
-            }
-            QScrollArea {
-                background-color: #ffffff;
-                border: none;
-            }
-            QScrollBar:vertical {
-                background-color: #f8f9fa;
-                width: 15px;
-                margin: 0px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #cccccc;
-                border-radius: 7px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #aaaaaa;
+                border-radius: 4px;
             }
         """)
 
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(20, 20, 20, 20)
 
-        # Configuración de correo remitente
-        email_frame = QWidget()
-        email_frame.setStyleSheet("background-color: #ffffff;")
-        email_layout = QFormLayout(email_frame)
+        # Crear scroll area para contenido
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         
-        self.email_entry = QLineEdit()
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setSpacing(15)
+
+        # Configuración de correo
+        email_section = SectionWidget("📧 Configuración de Correo")
+        email_form = QFormLayout()
+        email_form.setVerticalSpacing(10)
+        
+        self.email_entry = ModernLineEdit()
         self.email_entry.setPlaceholderText("ejemplo@gmail.com")
         self.email_entry.textChanged.connect(self.validate_form)
-        email_layout.addRow("Correo electrónico:", self.email_entry)
+        email_form.addRow("Correo electrónico:", self.email_entry)
 
-        self.password_entry = QLineEdit()
+        self.password_entry = ModernLineEdit()
         self.password_entry.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_entry.setPlaceholderText("Ingrese su contraseña o contraseña de aplicación")
+        self.password_entry.setPlaceholderText("Contraseña o contraseña de aplicación")
         self.password_entry.textChanged.connect(self.validate_form)
-        email_layout.addRow("Contraseña:", self.password_entry)
+        email_form.addRow("Contraseña:", self.password_entry)
 
-        # Checkbox para mostrar contraseña
         self.show_password = QCheckBox("Mostrar contraseña")
         self.show_password.toggled.connect(self.toggle_password_visibility)
-        email_layout.addRow("", self.show_password)
+        email_form.addRow("", self.show_password)
 
-        self.sender_name_entry = QLineEdit()
+        self.sender_name_entry = ModernLineEdit()
         self.sender_name_entry.setText("Generador de Constancias")
-        self.sender_name_entry.setPlaceholderText("Nombre que aparecerá como remitente")
+        self.sender_name_entry.setPlaceholderText("Nombre del remitente")
         self.sender_name_entry.textChanged.connect(self.validate_form)
-        email_layout.addRow("Nombre del remitente:", self.sender_name_entry)
-
-        layout.addWidget(email_frame)
+        email_form.addRow("Nombre del remitente:", self.sender_name_entry)
+        
+        email_section.content_layout.addLayout(email_form)
+        content_layout.addWidget(email_section)
 
         # Selección de archivos
-        files_frame = QWidget()
-        files_frame.setStyleSheet("background-color: #ffffff;")
-        files_layout = QFormLayout(files_frame)
+        files_section = SectionWidget("📁 Selección de Archivos")
+        files_form = QFormLayout()
+        files_form.setVerticalSpacing(10)
 
-        self.pdf_folder_entry = QLineEdit()
-        self.pdf_folder_entry.setPlaceholderText("Seleccione la carpeta con los PDFs")
-        self.btn_select_pdf = QPushButton("Seleccionar Carpeta")
+        self.pdf_folder_entry = ModernLineEdit()
+        self.pdf_folder_entry.setPlaceholderText("Carpeta con los PDFs")
+        self.btn_select_pdf = ModernButton("Seleccionar Carpeta")
         pdf_layout = QHBoxLayout()
         pdf_layout.addWidget(self.pdf_folder_entry)
         pdf_layout.addWidget(self.btn_select_pdf)
-        files_layout.addRow("Carpeta de PDFs:", pdf_layout)
+        files_form.addRow("Carpeta de PDFs:", pdf_layout)
 
-        self.excel_file_entry = QLineEdit()
-        self.excel_file_entry.setPlaceholderText("Seleccione el archivo Excel con los datos")
-        self.btn_select_excel = QPushButton("Seleccionar Excel")
+        self.excel_file_entry = ModernLineEdit()
+        self.excel_file_entry.setPlaceholderText("Archivo Excel con datos")
+        self.btn_select_excel = ModernButton("Seleccionar Excel")
         excel_layout = QHBoxLayout()
         excel_layout.addWidget(self.excel_file_entry)
         excel_layout.addWidget(self.btn_select_excel)
-        files_layout.addRow("Archivo Excel:", excel_layout)
-
-        layout.addWidget(files_frame)
+        files_form.addRow("Archivo Excel:", excel_layout)
+        
+        files_section.content_layout.addLayout(files_form)
+        content_layout.addWidget(files_section)
 
         # Configuración de columnas
-        columns_frame = QWidget()
-        columns_frame.setStyleSheet("background-color: #ffffff;")
-        columns_layout = QFormLayout(columns_frame)
+        columns_section = SectionWidget("🔗 Configuración de Columnas")
+        columns_form = QFormLayout()
+        columns_form.setVerticalSpacing(10)
 
-        self.name_column_combo = QComboBox()
+        self.name_column_combo = ModernComboBox()
         self.name_column_combo.currentTextChanged.connect(self.validate_form)
-        columns_layout.addRow("Columna Nombre:", self.name_column_combo)
+        columns_form.addRow("Columna Nombre:", self.name_column_combo)
 
-        self.email_column_combo = QComboBox()
+        self.email_column_combo = ModernComboBox()
         self.email_column_combo.currentTextChanged.connect(self.validate_form)
-        columns_layout.addRow("Columna Correo:", self.email_column_combo)
+        columns_form.addRow("Columna Correo:", self.email_column_combo)
 
-        self.filename_column_combo = QComboBox()
+        self.filename_column_combo = ModernComboBox()
         self.filename_column_combo.currentTextChanged.connect(self.validate_form)
-        columns_layout.addRow("Columna Archivo PDF:", self.filename_column_combo)
-
-        # Información sobre múltiples PDFs
-        info_label = QLabel("💡 Para múltiples PDFs, separar nombres por comas\nEjemplo: certificado1, certificado2")
-        info_label.setStyleSheet("color: #000000; font-size: 10pt; margin-top: 10px; background-color: transparent;")
-        columns_layout.addRow("", info_label)
-
-        layout.addWidget(columns_frame)
-
-        # Contenido del correo con barra de herramientas de formato
-        content_frame = QWidget()
-        content_frame.setStyleSheet("background-color:#ffffff;")
-        content_layout = QVBoxLayout(content_frame)
-
-        # Barra de herramientas de formato
-        format_toolbar = QToolBar()
-        format_toolbar.setIconSize(QSize(16, 16))
+        columns_form.addRow("Columna Archivo PDF:", self.filename_column_combo)
         
-        # Botones de formato de texto
-        self.btn_bold = QPushButton()
-        self.btn_bold.setIcon(QIcon(resource_path("assets/icons/bold.png")))
-        self.btn_bold.setToolTip("Negrita (Ctrl+B)")
-        self.btn_bold.setFixedSize(30, 30)
-        self.btn_bold.setStyleSheet("color: #000000;")
-        self.btn_bold.clicked.connect(self.toggle_bold)
-        format_toolbar.addWidget(self.btn_bold)
+        columns_section.content_layout.addLayout(columns_form)
+        content_layout.addWidget(columns_section)
 
-        self.btn_italic = QPushButton()
-        self.btn_italic.setIcon(QIcon(resource_path("assets/icons/italic.png")))
-        self.btn_italic.setToolTip("Itálica (Ctrl+I)")
-        self.btn_italic.setFixedSize(30, 30)
-        self.btn_italic.setStyleSheet("color: #000000;")
-        self.btn_italic.clicked.connect(self.toggle_italic)
-        format_toolbar.addWidget(self.btn_italic)
-
-        self.btn_underline = QPushButton()
-        self.btn_underline.setIcon(QIcon(resource_path("assets/icons/underline.png")))
-        self.btn_underline.setToolTip("Subrayado (Ctrl+U)")
-        self.btn_underline.setFixedSize(30, 30)
-        self.btn_underline.setStyleSheet("color: #000000;")
-        self.btn_underline.clicked.connect(self.toggle_underline)
-        format_toolbar.addWidget(self.btn_underline)
-
-        # Separador
-        format_toolbar.addSeparator()
-
-        # Alineación - CORREGIDO: texto negro visible
-        self.btn_align_left = QPushButton()
-        self.btn_align_left.setIcon(QIcon(resource_path("assets/icons/align_left.png")))
-        self.btn_align_left.setToolTip("Alinear a la izquierda")
-        self.btn_align_left.setFixedSize(30, 30)
-        self.btn_align_left.setStyleSheet("color: #000000;")
-        self.btn_align_left.clicked.connect(lambda: self.set_alignment(Qt.AlignmentFlag.AlignLeft))
-        format_toolbar.addWidget(self.btn_align_left)
-
-        self.btn_align_center = QPushButton()
-        self.btn_align_center.setIcon(QIcon(resource_path("assets/icons/align_center.png")))
-        self.btn_align_center.setToolTip("Centrar texto")
-        self.btn_align_center.setFixedSize(30, 30)
-        self.btn_align_center.setStyleSheet("color: #000000;")
-        self.btn_align_center.clicked.connect(lambda: self.set_alignment(Qt.AlignmentFlag.AlignCenter))
-        format_toolbar.addWidget(self.btn_align_center)
-
-        self.btn_align_right = QPushButton()
-        self.btn_align_right.setIcon(QIcon(resource_path("assets/icons/align_right.png")))
-        self.btn_align_right.setToolTip("Alinear a la derecha")
-        self.btn_align_right.setFixedSize(30, 30)
-        self.btn_align_right.setStyleSheet("color: #000000;")
-        self.btn_align_right.clicked.connect(lambda: self.set_alignment(Qt.AlignmentFlag.AlignRight))
-        format_toolbar.addWidget(self.btn_align_right)
-
-        self.btn_align_justify = QPushButton()
-        self.btn_align_justify.setIcon(QIcon(resource_path("assets/icons/align_justify.png")))
-        self.btn_align_justify.setToolTip("Justificar texto")
-        self.btn_align_justify.setFixedSize(30, 30)
-        self.btn_align_justify.setStyleSheet("color: #000000;")
-        self.btn_align_justify.clicked.connect(lambda: self.set_alignment(Qt.AlignmentFlag.AlignJustify))
-        format_toolbar.addWidget(self.btn_align_justify)
-
-        # Separador
-        format_toolbar.addSeparator()
-
-        # Interlineado
-        interlineado_layout = QHBoxLayout()
-        interlineado_label = QLabel("Interlineado:")
-        interlineado_label.setStyleSheet("color: #000000; background-color: transparent;")
-        interlineado_layout.addWidget(interlineado_label)
-        self.line_spacing_combo = QComboBox()
-        self.line_spacing_combo.addItems(["1.0", "1.15", "1.5", "2.0"])
-        self.line_spacing_combo.setCurrentText("1.15")
-        self.line_spacing_combo.currentTextChanged.connect(self.apply_line_spacing)
-        interlineado_layout.addWidget(self.line_spacing_combo)
-
-        # Sangría
-        sangria_label = QLabel("Sangría:")
-        sangria_label.setStyleSheet("color: #000000; background-color: transparent;")
-        interlineado_layout.addWidget(sangria_label)
-        self.indent_combo = QComboBox()
-        self.indent_combo.addItems(["0px", "10px", "20px", "30px", "40px"])
-        self.indent_combo.setCurrentText("0px")
-        self.indent_combo.currentTextChanged.connect(self.apply_indentation)
-        interlineado_layout.addWidget(self.indent_combo)
-
-        interlineado_widget = QWidget()
-        interlineado_widget.setLayout(interlineado_layout)
-        interlineado_widget.setStyleSheet("background-color: transparent;")
-        format_toolbar.addWidget(interlineado_widget)
-
-        content_layout.addWidget(format_toolbar)
-
+        # Contenido del correo
+        content_section = SectionWidget("📝 Contenido del Correo")
+        
         # Asunto
         subject_layout = QHBoxLayout()
-        subject_label = QLabel("Asunto:")
-        subject_label.setStyleSheet("color: #000000; background-color: transparent;")
-        subject_layout.addWidget(subject_label)
-        self.subject_entry = QLineEdit()
+        subject_label = ModernLabel("Asunto:")
+        self.subject_entry = ModernLineEdit()
         self.subject_entry.setText("Constancia de Participación")
-        self.subject_entry.setPlaceholderText("Asunto del correo electrónico")
         self.subject_entry.textChanged.connect(self.validate_form)
+        subject_layout.addWidget(subject_label)
         subject_layout.addWidget(self.subject_entry)
-        content_layout.addLayout(subject_layout)
+        content_section.content_layout.addLayout(subject_layout)
 
         # Cuerpo del mensaje
-        body_label = QLabel("Cuerpo del mensaje:")
-        body_label.setStyleSheet("color: #000000; background-color: transparent;")
-        content_layout.addWidget(body_label)
+        body_label = ModernLabel("Cuerpo del mensaje:")
+        content_section.content_layout.addWidget(body_label)
 
         self.body_text = QTextEdit()
         self.body_text.setMinimumHeight(200)
         
-        # TEXTO PREDETERMINADO MEJORADO - COLORES VISIBLES
+        # TEXTO PREDETERMINADO MEJORADO
         default_body = """<div style="font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.4; color: #000000; background-color: #ffffff;">
     <p style="color: #000000; margin: 12px 0;">Estimado/a <strong style="color: #000000;">{nombre}</strong>,</p>
     
@@ -366,86 +288,43 @@ class EmailSenderDialog(QDialog):
         self.body_text.setHtml(default_body)
         self.body_text.textChanged.connect(self.validate_form)
 
-        # Conectar señales de cambio de formato
-        self.body_text.cursorPositionChanged.connect(self.update_format_buttons)
-        self.body_text.selectionChanged.connect(self.update_format_buttons)
+        content_section.content_layout.addWidget(self.body_text)
 
-        content_layout.addWidget(self.body_text)
+        content_layout.addWidget(content_section)
+        content_layout.addStretch()
 
-        # Información sobre placeholders
-        placeholder_info = QLabel("💡 Placeholders disponibles: {nombre}, {Nombre}, {fecha} | Atajos: Ctrl+B, Ctrl+I, Ctrl+U")
-        placeholder_info.setStyleSheet("color: #000000; font-size: 9pt; margin-top: 5px; background-color: transparent;")
-        content_layout.addWidget(placeholder_info)
-
-        layout.addWidget(content_frame)
+        scroll_area.setWidget(content_widget)
+        main_layout.addWidget(scroll_area)
 
         # Botones de acción
         buttons_layout = QHBoxLayout()
-        self.btn_test = QPushButton("🔍 Probar Conexión")
-        self.btn_send = QPushButton("📤 Enviar Correos")
-        self.btn_cancel = QPushButton("❌ Cancelar")
+        self.btn_test = ModernButton("🔍 Probar Conexión")
+        self.btn_send = ModernButton("📤 Enviar Correos")
+        self.btn_cancel = ModernButton("❌ Cancelar")
 
-        # Botones especiales con colores específicos
-        self.btn_test.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8; 
-                color: white; 
-                font-weight: bold; 
-                padding: 8px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-        """)
-        self.btn_send.setStyleSheet("""
-            QPushButton {
-                background-color: #28a745; 
-                color: white; 
-                font-weight: bold; 
-                padding: 8px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-        """)
-        self.btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545; 
-                color: white; 
-                font-weight: bold; 
-                padding: 8px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-        """)
+        self.btn_test.setStyleSheet("background-color: #17a2b8;")
+        self.btn_send.setStyleSheet("background-color: #28a745;")
+        self.btn_cancel.setStyleSheet("background-color: #dc3545;")
 
         buttons_layout.addWidget(self.btn_test)
         buttons_layout.addWidget(self.btn_send)
         buttons_layout.addWidget(self.btn_cancel)
+        main_layout.addLayout(buttons_layout)
 
-        layout.addLayout(buttons_layout)
-
-        # Barra de progreso
+        # Barra de progreso y estado
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
-        layout.addWidget(self.progress_bar)
+        main_layout.addWidget(self.progress_bar)
 
-        # Etiqueta de estado
-        self.status_label = QLabel("Listo para configurar el envío")
+        self.status_label = ModernLabel("Listo para configurar el envío")
         self.status_label.setStyleSheet("""
-            padding: 10px; 
-            background-color: #f8f9fa; 
-            border: 1px solid #dee2e6; 
-            border-radius: 4px;
-            color: #000000;
-            font-weight: normal;
+            padding: 12px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            color: #495057;
+            font-size: 14px;
         """)
-        self.status_label.setWordWrap(True)
-        layout.addWidget(self.status_label)
+        main_layout.addWidget(self.status_label)
 
         # Conectar señales
         self.btn_select_pdf.clicked.connect(self.select_pdf_folder)
@@ -454,32 +333,7 @@ class EmailSenderDialog(QDialog):
         self.btn_send.clicked.connect(self.start_sending)
         self.btn_cancel.clicked.connect(self.cancel_operation)
 
-        # Configurar atajos de teclado
-        self.setup_shortcuts()
-
-        # Inicializar estado de botones
         self.btn_send.setEnabled(False)
-
-    def setup_shortcuts(self):
-        """Configura atajos de teclado para formato"""
-        # Los atajos se manejarán en keyPressEvent
-
-    def keyPressEvent(self, event):
-        """Maneja atajos de teclado para formato de texto"""
-        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
-            if event.key() == Qt.Key.Key_B:
-                self.toggle_bold()
-                event.accept()
-                return
-            elif event.key() == Qt.Key.Key_I:
-                self.toggle_italic()
-                event.accept()
-                return
-            elif event.key() == Qt.Key.Key_U:
-                self.toggle_underline()
-                event.accept()
-                return
-        super().keyPressEvent(event)
 
     def toggle_password_visibility(self, checked):
         if checked:
@@ -531,24 +385,22 @@ class EmailSenderDialog(QDialog):
             
             self.status_label.setText("✅ Excel cargado correctamente")
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #d4edda; 
-                border: 1px solid #c3e6cb; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+                border-radius: 6px;
                 color: #155724;
-                font-weight: normal;
             """)
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo cargar el archivo Excel: {str(e)}")
             self.status_label.setText("❌ Error al cargar Excel")
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #f8d7da; 
-                border: 1px solid #f5c6cb; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+                border-radius: 6px;
                 color: #721c24;
-                font-weight: normal;
             """)
 
     def validate_form(self):
@@ -571,131 +423,21 @@ class EmailSenderDialog(QDialog):
         if is_complete:
             self.status_label.setText("✅ Formulario completo. Listo para enviar.")
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #d4edda; 
-                border: 1px solid #c3e6cb; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+                border-radius: 6px;
                 color: #155724;
-                font-weight: normal;
             """)
         else:
             self.status_label.setText("ℹ️ Complete todos los campos para habilitar el envío")
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #fff3cd; 
-                border: 1px solid #ffeaa7; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #fff3cd;
+                border: 1px solid #ffeaa7;
+                border-radius: 6px;
                 color: #856404;
-                font-weight: normal;
             """)
-
-    # MÉTODOS DE FORMATO DE TEXTO
-    def toggle_bold(self):
-        """Alterna formato negrita en el texto seleccionado"""
-        cursor = self.body_text.textCursor()
-        if cursor.hasSelection():
-            format = QTextCharFormat()
-            font_weight = QFont.Weight.Normal if cursor.charFormat().fontWeight() == QFont.Weight.Bold else QFont.Weight.Bold
-            format.setFontWeight(font_weight)
-            cursor.mergeCharFormat(format)
-        else:
-            # Alternar formato para el texto que se escribirá
-            current_format = self.body_text.currentCharFormat()
-            new_weight = QFont.Weight.Normal if current_format.fontWeight() == QFont.Weight.Bold else QFont.Weight.Bold
-            new_format = QTextCharFormat()
-            new_format.setFontWeight(new_weight)
-            self.body_text.setCurrentCharFormat(new_format)
-
-    def toggle_italic(self):
-        """Alterna formato itálica en el texto seleccionado"""
-        cursor = self.body_text.textCursor()
-        if cursor.hasSelection():
-            format = QTextCharFormat()
-            format.setFontItalic(not cursor.charFormat().fontItalic())
-            cursor.mergeCharFormat(format)
-        else:
-            current_format = self.body_text.currentCharFormat()
-            new_format = QTextCharFormat()
-            new_format.setFontItalic(not current_format.fontItalic())
-            self.body_text.setCurrentCharFormat(new_format)
-
-    def toggle_underline(self):
-        """Alterna formato subrayado en el texto seleccionado"""
-        cursor = self.body_text.textCursor()
-        if cursor.hasSelection():
-            format = QTextCharFormat()
-            format.setFontUnderline(not cursor.charFormat().fontUnderline())
-            cursor.mergeCharFormat(format)
-        else:
-            current_format = self.body_text.currentCharFormat()
-            new_format = QTextCharFormat()
-            new_format.setFontUnderline(not current_format.fontUnderline())
-            self.body_text.setCurrentCharFormat(new_format)
-
-    def set_alignment(self, alignment):
-        """Establece la alineación del párrafo"""
-        cursor = self.body_text.textCursor()
-        if not cursor.hasSelection():
-            cursor.select(QTextCursor.SelectionType.Document)
-        
-        block_format = QTextBlockFormat()
-        block_format.setAlignment(alignment)
-        cursor.mergeBlockFormat(block_format)
-
-    def apply_line_spacing(self, spacing):
-        """Aplica el interlineado seleccionado"""
-        cursor = self.body_text.textCursor()
-        if not cursor.hasSelection():
-            cursor.select(QTextCursor.SelectionType.Document)
-        
-        block_format = QTextBlockFormat()
-        line_height = float(spacing)
-        block_format.setLineHeight(line_height * 100, QTextBlockFormat.LineHeightTypes.ProportionalHeight)
-        cursor.mergeBlockFormat(block_format)
-
-    def apply_indentation(self, indent):
-        """Aplica la sangría seleccionada"""
-        cursor = self.body_text.textCursor()
-        if not cursor.hasSelection():
-            cursor.select(QTextCursor.SelectionType.Document)
-        
-        block_format = QTextBlockFormat()
-        indent_pixels = int(indent.replace('px', ''))
-        block_format.setLeftMargin(indent_pixels)
-        cursor.mergeBlockFormat(block_format)
-
-    def update_format_buttons(self):
-        """Actualiza el estado de los botones de formato según la selección actual"""
-        cursor = self.body_text.textCursor()
-        format = cursor.charFormat()
-        
-        # Actualizar botones de formato de caracteres
-        self.btn_bold.setStyleSheet(
-            "font-weight: bold; background-color: #e9ecef; color: #000000;" if format.fontWeight() == QFont.Weight.Bold else "color: #000000; background-color: transparent;"
-        )
-        self.btn_italic.setStyleSheet(
-            "font-style: italic; background-color: #e9ecef; color: #000000;" if format.fontItalic() else "color: #000000; background-color: transparent;"
-        )
-        self.btn_underline.setStyleSheet(
-            "text-decoration: underline; background-color: #e9ecef; color: #000000;" if format.fontUnderline() else "color: #000000; background-color: transparent;"
-        )
-        
-        # Actualizar botones de alineación - CORREGIDO: texto siempre negro
-        block_format = cursor.blockFormat()
-        alignment = block_format.alignment()
-        
-        self.btn_align_left.setStyleSheet(
-            "background-color: #e9ecef; color: #000000;" if alignment == Qt.AlignmentFlag.AlignLeft else "color: #000000; background-color: transparent;"
-        )
-        self.btn_align_center.setStyleSheet(
-            "background-color: #e9ecef; color: #000000;" if alignment == Qt.AlignmentFlag.AlignCenter else "color: #000000; background-color: transparent;"
-        )
-        self.btn_align_right.setStyleSheet(
-            "background-color: #e9ecef; color: #000000;" if alignment == Qt.AlignmentFlag.AlignRight else "color: #000000; background-color: transparent;"
-        )
-        self.btn_align_justify.setStyleSheet(
-            "background-color: #e9ecef; color: #000000;" if alignment == Qt.AlignmentFlag.AlignJustify else "color: #000000; background-color: transparent;"
-        )
 
     def test_connection(self):
         email = self.email_entry.text().strip()
@@ -707,12 +449,11 @@ class EmailSenderDialog(QDialog):
         
         self.status_label.setText("🔄 Probando conexión con el servidor SMTP...")
         self.status_label.setStyleSheet("""
-            padding: 10px; 
-            background-color: #fff3cd; 
-            border: 1px solid #ffeaa7; 
-            border-radius: 4px; 
+            padding: 12px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
             color: #856404;
-            font-weight: normal;
         """)
         self.btn_test.setEnabled(False)
         
@@ -725,12 +466,11 @@ class EmailSenderDialog(QDialog):
             if success:
                 self.status_label.setText(message)
                 self.status_label.setStyleSheet("""
-                    padding: 10px; 
-                    background-color: #d4edda; 
-                    border: 1px solid #c3e6cb; 
-                    border-radius: 4px; 
+                    padding: 12px;
+                    background-color: #d4edda;
+                    border: 1px solid #c3e6cb;
+                    border-radius: 6px;
                     color: #155724;
-                    font-weight: normal;
                 """)
                 QMessageBox.information(self, "✅ Conexión Exitosa", 
                                       f"Conexión establecida correctamente con:\n\n"
@@ -740,12 +480,11 @@ class EmailSenderDialog(QDialog):
             else:
                 self.status_label.setText(message)
                 self.status_label.setStyleSheet("""
-                    padding: 10px; 
-                    background-color: #f8d7da; 
-                    border: 1px solid #f5c6cb; 
-                    border-radius: 4px; 
+                    padding: 12px;
+                    background-color: #f8d7da;
+                    border: 1px solid #f5c6cb;
+                    border-radius: 6px;
                     color: #721c24;
-                    font-weight: normal;
                 """)
                 QMessageBox.critical(self, "❌ Error de Conexión", 
                                    f"No se pudo establecer la conexión:\n\n{message}\n\n"
@@ -758,12 +497,11 @@ class EmailSenderDialog(QDialog):
             error_msg = f"Error inesperado: {str(e)}"
             self.status_label.setText(error_msg)
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #f8d7da; 
-                border: 1px solid #f5c6cb; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+                border-radius: 6px;
                 color: #721c24;
-                font-weight: normal;
             """)
             QMessageBox.critical(self, "Error", error_msg)
         
@@ -890,12 +628,11 @@ class EmailSenderDialog(QDialog):
             self.email_sender.start()
             self.status_label.setText("🚀 Iniciando envío de correos...")
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #cce7ff; 
-                border: 1px solid #b3d9ff; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #cce7ff;
+                border: 1px solid #b3d9ff;
+                border-radius: 6px;
                 color: #004085;
-                font-weight: normal;
             """)
             
         except Exception as e:
@@ -912,23 +649,21 @@ class EmailSenderDialog(QDialog):
             QMessageBox.critical(self, "Error", message[6:])
             self.status_label.setText("❌ Error en el envío")
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #f8d7da; 
-                border: 1px solid #f5c6cb; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+                border-radius: 6px;
                 color: #721c24;
-                font-weight: normal;
             """)
         else:
             QMessageBox.information(self, "Proceso Completado", message)
             self.status_label.setText("✅ " + message)
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #d4edda; 
-                border: 1px solid #c3e6cb; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+                border-radius: 6px;
                 color: #155724;
-                font-weight: normal;
             """)
         
         self.reset_interface()
@@ -939,12 +674,11 @@ class EmailSenderDialog(QDialog):
             self.email_sender.stop()
             self.status_label.setText("⏹️ Cancelando envío...")
             self.status_label.setStyleSheet("""
-                padding: 10px; 
-                background-color: #fff3cd; 
-                border: 1px solid #ffeaa7; 
-                border-radius: 4px; 
+                padding: 12px;
+                background-color: #fff3cd;
+                border: 1px solid #ffeaa7;
+                border-radius: 6px;
                 color: #856404;
-                font-weight: normal;
             """)
         else:
             self.reject()
@@ -957,87 +691,106 @@ class EmailSenderDialog(QDialog):
         self.progress_bar.setVisible(False)
         self.progress_bar.setValue(0)
 
-# Clase App principal con fondo blanco
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("RallyCert")
-        self.setGeometry(100, 100, 1200, 800)
-        self.setMinimumSize(1100, 700)
+        self.setWindowTitle("RallyCert - Generador de Constancias")
+        self.setGeometry(100, 100, 1400, 900)
+        self.setMinimumSize(1200, 700)
         self.setWindowIcon(QIcon(resource_path('assets/icon.ico')))
 
-        # FONDO BLANCO PARA LA VENTANA PRINCIPAL
+        # ESTILOS MODERNOS CON FONDO AZUL CLARO
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #ffffff;
-                color: #000000;
+                background-color: #f0f8ff;
+                color: #2c3e50;
             }
             QWidget {
-                background-color: #ffffff;
-                color: #000000;
-            }
-            QLabel {
                 background-color: transparent;
-                color: #000000;
+                color: #2c3e50;
             }
             QPushButton {
-                background-color: #f8f9fa;
-                color: #000000;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 8px 16px;
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 16px;
                 font-weight: bold;
+                font-size: 14px;
             }
             QPushButton:hover {
-                background-color: #e9ecef;
+                background-color: #5a6268;
             }
             QPushButton:pressed {
-                background-color: #dee2e6;
+                background-color: #545b62;
             }
             QLineEdit, QComboBox, QSpinBox {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px;
+                background-color: white;
+                color: #2c3e50;
+                border: 2px solid #e9ecef;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 14px;
+            }
+            QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+                border-color: #007bff;
             }
             QTextEdit {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
+                background-color: white;
+                color: #2c3e50;
+                border: 2px solid #e9ecef;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 14px;
             }
             QTabWidget::pane {
-                border: 1px solid #cccccc;
-                background-color: #ffffff;
+                border: 2px solid #e9ecef;
+                border-radius: 8px;
+                background-color: white;
             }
             QTabBar::tab {
-                background-color: #f8f9fa;
-                color: #000000;
-                padding: 8px 16px;
-                border: 1px solid #cccccc;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
+                background-color: #e9ecef;
+                color: #6c757d;
+                padding: 12px 20px;
+                margin-right: 2px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                font-weight: bold;
             }
             QTabBar::tab:selected {
-                background-color: #ffffff;
-                border-bottom: 1px solid #ffffff;
-            }
-            QScrollArea {
-                background-color: #ffffff;
-                border: none;
+                background-color: white;
+                color: #007bff;
+                border-bottom: 2px solid #007bff;
             }
             QProgressBar {
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                background-color: #ffffff;
+                border: 2px solid #e9ecef;
+                border-radius: 6px;
+                background-color: white;
                 text-align: center;
-                color: #000000;
+                color: #2c3e50;
+                height: 20px;
             }
             QProgressBar::chunk {
                 background-color: #007bff;
+                border-radius: 4px;
+            }
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QCheckBox {
+                spacing: 8px;
+                font-size: 14px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
                 border-radius: 3px;
+                border: 2px solid #6c757d;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #007bff;
+                border-color: #007bff;
             }
         """)
 
@@ -1053,256 +806,384 @@ class App(QMainWindow):
 
         self.setup_ui()
 
-    def open_email_sender(self):
-        """Abre el diálogo para enviar constancias por correo"""
-        try:
-            self.email_dialog = EmailSenderDialog(self)
-            self.email_dialog.exec()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo abrir el envío de correos: {str(e)}")
-
     def setup_ui(self):
-        """Configura la interfaz de usuario completa"""
+        """Configura la interfaz de usuario moderna"""
         central_widget = QWidget()
-        central_widget.setStyleSheet("background-color: #ffffff;")
         self.setCentralWidget(central_widget)
         
-        # LAYOUT PRINCIPAL VERTICAL - Banner arriba, contenido abajo
+        # LAYOUT PRINCIPAL
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         
-        # --- BANNER SUPERIOR CENTRADO ---
+        # --- BANNER SUPERIOR ---
         banner_container = QWidget()
-        banner_container.setStyleSheet("background-color: #ffffff;")
+        banner_container.setStyleSheet("background-color: white;")
+        banner_container.setFixedHeight(120)
         banner_layout = QVBoxLayout(banner_container)
-        banner_layout.setContentsMargins(0, 0, 0, 0)
+        banner_layout.setContentsMargins(20, 10, 20, 10)
         
         self.banner_label = QLabel()
         banner_pixmap = QPixmap(resource_path('assets/Banner.png')) 
         if not banner_pixmap.isNull():
-            banner_pixmap = banner_pixmap.scaledToWidth(1000, Qt.TransformationMode.SmoothTransformation)
+            banner_pixmap = banner_pixmap.scaledToHeight(80, Qt.TransformationMode.SmoothTransformation)
             self.banner_label.setPixmap(banner_pixmap)
         else:
-            self.banner_label.setText("Banner no encontrado")
-            self.banner_label.setStyleSheet("color: #000000; font-weight: bold; padding: 20px; background-color: transparent;")
+            self.banner_label.setText("RallyCert - Generador de Constancias")
+            self.banner_label.setStyleSheet("""
+                color: #2c3e50; 
+                font-weight: bold; 
+                font-size: 24px;
+                background-color: transparent;
+            """)
         
         self.banner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.banner_label.setStyleSheet("margin-bottom: 0px; padding: 0px; background-color: transparent;")
-        
         banner_layout.addWidget(self.banner_label)
         main_layout.addWidget(banner_container)
         
-        # --- CONTENIDO PRINCIPAL (Panel izquierdo + derecho) ---
-        content_widget = QWidget()
-        content_widget.setStyleSheet("background-color: #ffffff;")
-        content_layout = QHBoxLayout(content_widget)
-        content_layout.setContentsMargins(10, 0, 10, 10)
+        # --- CONTENIDO PRINCIPAL ---
+        content_container = QWidget()
+        content_layout = QHBoxLayout(content_container)
+        content_layout.setSpacing(15)
+        content_layout.setContentsMargins(15, 15, 15, 15)
         
-        # --- PANEL DE CONTROL (Izquierda) ---
+        # --- PANEL DE CONTROL IZQUIERDO (40%) ---
+        control_container = QWidget()
+        control_container.setMaximumWidth(500)
+        control_layout = QVBoxLayout(control_container)
+        control_layout.setSpacing(10)
+        
+        # Scroll area para controles
         control_scroll = QScrollArea()
         control_scroll.setWidgetResizable(True)
-        control_scroll.setMaximumWidth(500)
         control_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        control_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         
-        control_widget = QWidget()
-        control_widget.setStyleSheet("background-color: #ffffff;")
-        control_panel = QVBoxLayout(control_widget)
-        control_scroll.setWidget(control_widget)
+        control_content = QWidget()
+        control_scroll_layout = QVBoxLayout(control_content)
+        control_scroll_layout.setSpacing(15)
+        control_scroll_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Secciones del panel de control
+        sections = [
+            ("🎨 Plantillas Predefinidas", self.create_template_section()),
+            ("📄 Cargar Plantilla", self.create_template_load_section()),
+            ("📊 Cargar Participantes", self.create_excel_section()),
+            ("🔗 Asignar Columnas", self.create_mapping_section()),
+            ("🎯 Estilo de Texto", self.create_style_section()),
+            ("🏷️ Leyenda de Validación", self.create_validation_section()),
+            ("✅ Validación", self.create_validation_check_section()),
+            ("⚙️ Configuración", self.create_config_section()),
+            ("🚀 Acciones", self.create_actions_section())
+        ]
+        
+        for title, widget in sections:
+            section = SectionWidget(title)
+            section.content_layout.addWidget(widget)
+            control_scroll_layout.addWidget(section)
+        
+        control_scroll_layout.addStretch()
+        control_scroll.setWidget(control_content)
+        control_layout.addWidget(control_scroll)
+        
+        # --- PANEL DE PREVISUALIZACIÓN DERECHO (60%) ---
+        preview_container = QWidget()
+        preview_layout = QVBoxLayout(preview_container)
+        preview_layout.setSpacing(10)
+        
+        # Tabs para previsualización y logs
+        preview_tabs = QTabWidget()
+        preview_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 2px solid #e9ecef;
+                border-radius: 8px;
+                background-color: white;
+            }
+        """)
+        
+        # Pestaña de Previsualización (más pequeña)
+        preview_widget = QWidget()
+        preview_widget_layout = QVBoxLayout(preview_widget)
+        preview_widget_layout.setContentsMargins(10, 10, 10, 10)
+        
+        preview_title = ModernLabel("👁️ Previsualización en Tiempo Real")
+        preview_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #2c3e50;")
+        preview_widget_layout.addWidget(preview_title)
+        
+        self.preview_label = QLabel("Cargue una plantilla PDF para ver la previsualización.")
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setStyleSheet("""
+            border: 2px dashed #dee2e6; 
+            background-color: #f8f9fa; 
+            border-radius: 8px; 
+            padding: 20px; 
+            font-size: 14px; 
+            color: #6c757d;
+            min-height: 300px;
+        """)
+        self.preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        preview_widget_layout.addWidget(self.preview_label)
+        
+        # Pestaña de Log
+        log_widget = QWidget()
+        log_layout = QVBoxLayout(log_widget)
+        log_layout.setContentsMargins(10, 10, 10, 10)
+        
+        log_title = ModernLabel("📝 Registro de Actividad")
+        log_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #2c3e50;")
+        log_layout.addWidget(log_title)
+        
+        self.log_box = QTextEdit()
+        self.log_box.setReadOnly(True)
+        self.log_box.setStyleSheet("""
+            font-family: 'Consolas', 'Monaco', monospace; 
+            font-size: 12px; 
+            color: #2c3e50; 
+            background-color: white;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+        """)
+        log_layout.addWidget(self.log_box)
+        
+        preview_tabs.addTab(preview_widget, "👁️ Previsualización")
+        preview_tabs.addTab(log_widget, "📝 Registro")
+        
+        preview_layout.addWidget(preview_tabs)
+        
+        # Añadir paneles al layout principal
+        content_layout.addWidget(control_container, 1)  # 40% del espacio
+        content_layout.addWidget(preview_container, 2)  # 60% del espacio
+        
+        main_layout.addWidget(content_container, 1)
 
-        # 1. Plantillas Predefinidas
-        control_panel.addWidget(self._create_section_label("🎨 Plantillas Predefinidas"))
-        self.template_preset_combo = QComboBox()
-        self.template_preset_combo.setMinimumHeight(30)
+    def create_template_section(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.template_preset_combo = ModernComboBox()
         self.load_template_presets()
         self.template_preset_combo.currentTextChanged.connect(self.apply_template_preset)
-        control_panel.addWidget(self.template_preset_combo)
-
-        # 2. Plantilla
-        control_panel.addWidget(self._create_section_label("📄 Cargar Plantilla"))
-        self.btn_load_template = QPushButton("Seleccionar Plantilla (.pdf, .docx, .pptx)")
-        self.btn_load_template.setMinimumHeight(35)
-        self.btn_load_template.clicked.connect(self.load_template)
-        self.lbl_template_path = QLabel("Ningún archivo seleccionado.")
-        self.lbl_template_path.setWordWrap(True)
-        self.lbl_template_path.setStyleSheet("padding: 5px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; color: #000000;")
-        control_panel.addWidget(self.btn_load_template)
-        control_panel.addWidget(self.lbl_template_path)
-
-        # 3. Excel
-        control_panel.addWidget(self._create_section_label("📊 Cargar Participantes"))
-        self.btn_load_excel = QPushButton("Seleccionar Excel (.xlsx)")
-        self.btn_load_excel.setMinimumHeight(35)
-        self.btn_load_excel.clicked.connect(self.load_excel)
-        self.lbl_excel_path = QLabel("Ningún archivo seleccionado.")
-        self.lbl_excel_path.setWordWrap(True)
-        self.lbl_excel_path.setStyleSheet("padding: 5px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; color: #000000;")
-        control_panel.addWidget(self.btn_load_excel)
-        control_panel.addWidget(self.lbl_excel_path)
+        layout.addWidget(self.template_preset_combo)
         
-        # 4. Mapeo de Columnas
-        control_panel.addWidget(self._create_section_label("🔗 Asignar Columnas"))
-        form_layout = QFormLayout()
-        self.combo_text1 = QComboBox()
-        self.combo_text2 = QComboBox()
+        return widget
+
+    def create_template_load_section(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        self.btn_load_template = ModernButton("Seleccionar Plantilla (.pdf, .docx, .pptx)")
+        self.btn_load_template.clicked.connect(self.load_template)
+        layout.addWidget(self.btn_load_template)
+        
+        self.lbl_template_path = ModernLabel("Ningún archivo seleccionado.")
+        self.lbl_template_path.setStyleSheet("""
+            padding: 8px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            color: #6c757d;
+            font-size: 13px;
+        """)
+        layout.addWidget(self.lbl_template_path)
+        
+        return widget
+
+    def create_excel_section(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        self.btn_load_excel = ModernButton("Seleccionar Excel (.xlsx)")
+        self.btn_load_excel.clicked.connect(self.load_excel)
+        layout.addWidget(self.btn_load_excel)
+        
+        self.lbl_excel_path = ModernLabel("Ningún archivo seleccionado.")
+        self.lbl_excel_path.setStyleSheet("""
+            padding: 8px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            color: #6c757d;
+            font-size: 13px;
+        """)
+        layout.addWidget(self.lbl_excel_path)
+        
+        return widget
+
+    def create_mapping_section(self):
+        widget = QWidget()
+        layout = QFormLayout(widget)
+        layout.setVerticalSpacing(10)
+        
+        self.combo_text1 = ModernComboBox()
+        self.combo_text2 = ModernComboBox()
+        self.combo_filename = ModernComboBox()
+        
         self.combo_text1.setEnabled(False)
         self.combo_text2.setEnabled(False)
-        self.combo_text1.setMinimumHeight(30)
-        self.combo_text2.setMinimumHeight(30)
-        form_layout.addRow("{{TEXT_1}} (Nombre):", self.combo_text1)
-        form_layout.addRow("{{TEXT_2}} (Título/Evento):", self.combo_text2)
-        
-        self.combo_filename = QComboBox()
         self.combo_filename.setEnabled(False)
-        self.combo_filename.setMinimumHeight(30)
-        form_layout.addRow("Columna para nombre de archivo:", self.combo_filename)
-        control_panel.addLayout(form_layout)
-
-        # 5. Estilo de Fuente - CONTROLES INDEPENDIENTES
-        control_panel.addWidget(self._create_section_label("🎯 Estilo de Texto"))
         
-        # TEXT_1 (Nombre) - CONFIGURACIÓN INDEPENDIENTE
-        control_panel.addWidget(QLabel("{{TEXT_1}} (Nombre):"))
-        name_style_layout = QHBoxLayout()
+        layout.addRow("{{TEXT_1}} (Nombre):", self.combo_text1)
+        layout.addRow("{{TEXT_2}} (Título/Evento):", self.combo_text2)
+        layout.addRow("Columna para nombre de archivo:", self.combo_filename)
+        
+        return widget
+
+    def create_style_section(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        
+        # Estilo para TEXT_1
+        text1_group = QWidget()
+        text1_layout = QFormLayout(text1_group)
+        text1_layout.setVerticalSpacing(8)
         
         self.font_combo_1 = self._get_font_combo()
         self.font_size_spin_1 = QSpinBox()
         self.font_size_spin_1.setRange(8, 72)
         self.font_size_spin_1.setValue(24)
-        self.font_size_spin_1.setMinimumHeight(30)
         self.bold_check_1 = QCheckBox("Negrita")
         self.bold_check_1.setChecked(True)
         
-        name_style_layout.addWidget(QLabel("Fuente:"))
-        name_style_layout.addWidget(self.font_combo_1)
-        name_style_layout.addWidget(QLabel("Tamaño:"))
-        name_style_layout.addWidget(self.font_size_spin_1)
-        name_style_layout.addWidget(self.bold_check_1)
-        control_panel.addLayout(name_style_layout)
+        text1_layout.addRow("Fuente:", self.font_combo_1)
+        text1_layout.addRow("Tamaño:", self.font_size_spin_1)
+        text1_layout.addRow("", self.bold_check_1)
         
-        # TEXT_2 (Título) - CONFIGURACIÓN INDEPENDIENTE
-        control_panel.addWidget(QLabel("{{TEXT_2}} (Título/Evento):"))
-        title_style_layout = QHBoxLayout()
+        # Estilo para TEXT_2
+        text2_group = QWidget()
+        text2_layout = QFormLayout(text2_group)
+        text2_layout.setVerticalSpacing(8)
         
         self.font_combo_2 = self._get_font_combo()
         self.font_size_spin_2 = QSpinBox()
         self.font_size_spin_2.setRange(8, 72)
         self.font_size_spin_2.setValue(18)
-        self.font_size_spin_2.setMinimumHeight(30)
         self.bold_check_2 = QCheckBox("Negrita")
         
-        title_style_layout.addWidget(QLabel("Fuente:"))
-        title_style_layout.addWidget(self.font_combo_2)
-        title_style_layout.addWidget(QLabel("Tamaño:"))
-        title_style_layout.addWidget(self.font_size_spin_2)
-        title_style_layout.addWidget(self.bold_check_2)
-        control_panel.addLayout(title_style_layout)
-
-        # Conectar eventos de estilo
+        text2_layout.addRow("Fuente:", self.font_combo_2)
+        text2_layout.addRow("Tamaño:", self.font_size_spin_2)
+        text2_layout.addRow("", self.bold_check_2)
+        
+        layout.addWidget(ModernLabel("{{TEXT_1}} (Nombre):"))
+        layout.addWidget(text1_group)
+        layout.addWidget(ModernLabel("{{TEXT_2}} (Título/Evento):"))
+        layout.addWidget(text2_group)
+        
+        # Conectar señales de manera segura
         self.font_combo_1.currentTextChanged.connect(self.update_preview)
         self.font_size_spin_1.valueChanged.connect(self.update_preview)
         self.bold_check_1.stateChanged.connect(self.update_preview)
         self.font_combo_2.currentTextChanged.connect(self.update_preview)
         self.font_size_spin_2.valueChanged.connect(self.update_preview)
         self.bold_check_2.stateChanged.connect(self.update_preview)
+        
+        return widget
 
-        # 6. Validación
-        control_panel.addWidget(self._create_section_label("✅ Validación"))
-        self.btn_validate = QPushButton("🔍 Validar Configuración")
-        self.btn_validate.setMinimumHeight(35)
-        self.btn_validate.setStyleSheet("background-color: #17a2b8; color: white; font-weight: bold;")
+    def create_validation_section(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        validation_layout = QHBoxLayout()
+        self.validation_text_entry = ModernLineEdit()
+        self.validation_text_entry.setPlaceholderText("Texto de validación personalizado")
+        self.validation_text_entry.setText("Validado por Rally de la Niñez Científica y EXPO STEM, Universidad de Sonora")
+        validation_layout.addWidget(self.validation_text_entry)
+        
+        self.btn_apply_validation_text = ModernButton("💾 Aplicar")
+        self.btn_apply_validation_text.setStyleSheet("background-color: #6c757d;")
+        self.btn_apply_validation_text.clicked.connect(self.apply_validation_text)
+        validation_layout.addWidget(self.btn_apply_validation_text)
+        
+        layout.addLayout(validation_layout)
+        
+        self.validation_status_label = ModernLabel("Leyenda actual: Validado por Rally de la Niñez Científica y EXPO STEM, Universidad de Sonora")
+        self.validation_status_label.setStyleSheet("""
+            padding: 8px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            color: #495057;
+            font-size: 12px;
+        """)
+        layout.addWidget(self.validation_status_label)
+        
+        return widget
+
+    def create_validation_check_section(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        self.btn_validate = ModernButton("🔍 Validar Configuración")
+        self.btn_validate.setStyleSheet("background-color: #17a2b8;")
         self.btn_validate.clicked.connect(self.validate_configuration)
-        self.validation_label = QLabel("Estado: Sin validar")
-        self.validation_label.setWordWrap(True)
-        self.validation_label.setMinimumHeight(60)
-        self.validation_label.setStyleSheet("padding: 8px; border: 1px solid #ccc; border-radius: 4px; background-color: #f8f9fa; font-size: 10pt; color: #000000;")
-        control_panel.addWidget(self.btn_validate)
-        control_panel.addWidget(self.validation_label)
+        layout.addWidget(self.btn_validate)
+        
+        self.validation_label = ModernLabel("Estado: Sin validar")
+        self.validation_label.setStyleSheet("""
+            padding: 12px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            color: #6c757d;
+            font-size: 13px;
+            min-height: 60px;
+        """)
+        layout.addWidget(self.validation_label)
+        
+        return widget
 
-        # 7. Exportación
-        control_panel.addWidget(self._create_section_label("⚙️ Configuración"))
-        self.export_mode_combo = QComboBox()
+    def create_config_section(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        self.export_mode_combo = ModernComboBox()
         self.export_mode_combo.addItems(["Individual", "Un solo PDF combinado"])
-        self.export_mode_combo.setMinimumHeight(30)
-        control_panel.addWidget(QLabel("Modo de exportación:"))
-        control_panel.addWidget(self.export_mode_combo)
-
-        # 8. Acciones
-        control_panel.addWidget(self._create_section_label("🚀 Acciones"))
+        layout.addWidget(ModernLabel("Modo de exportación:"))
+        layout.addWidget(self.export_mode_combo)
         
-        # Botón para enviar por correo (NUEVO)
-        self.btn_send_email = QPushButton("📤 Enviar Constancias por Correo")
-        self.btn_send_email.setMinimumHeight(40)
-        self.btn_send_email.setStyleSheet("background-color: #007bff; color: white; font-weight: bold;")
+        return widget
+
+    def create_actions_section(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        self.btn_send_email = ModernButton("📤 Enviar Constancias por Correo")
+        self.btn_send_email.setStyleSheet("background-color: #007bff;")
         self.btn_send_email.clicked.connect(self.open_email_sender)
-        control_panel.addWidget(self.btn_send_email)
-
-        # Botón para generar constancias (ORIGINAL)
-        self.btn_generate = QPushButton("🚀 Generar Constancias")
-        self.btn_generate.setMinimumHeight(45)
-        self.btn_generate.setStyleSheet("background-color: #28a745; color: white; font-size: 14pt; font-weight: bold; border-radius: 6px;")
-        self.btn_generate.clicked.connect(self.start_generation)
+        layout.addWidget(self.btn_send_email)
         
-        self.btn_cancel = QPushButton("⏹️ Cancelar")
-        self.btn_cancel.setMinimumHeight(35)
-        self.btn_cancel.setEnabled(False)
-        self.btn_cancel.setStyleSheet("background-color: #dc3545; color: white; font-weight: bold; border-radius: 6px;")
+        self.btn_generate = ModernButton("🚀 Generar Constancias")
+        self.btn_generate.setStyleSheet("""
+            background-color: #28a745; 
+            font-size: 16px;
+            padding: 12px;
+        """)
+        self.btn_generate.clicked.connect(self.start_generation)
+        layout.addWidget(self.btn_generate)
+        
+        self.btn_cancel = ModernButton("❌ Cancelar")
+        self.btn_cancel.setStyleSheet("background-color: #dc3545;")
         self.btn_cancel.clicked.connect(self.cancel_generation)
+        layout.addWidget(self.btn_cancel)
         
         self.progress_bar = QProgressBar()
-        self.progress_bar.setMinimumHeight(20)
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
         
-        control_panel.addWidget(self.btn_generate)
-        control_panel.addWidget(self.btn_cancel)
-        control_panel.addWidget(self.progress_bar)
+        return widget
 
-        control_panel.addStretch()
-
-        # --- PANEL DE PREVISUALIZACIÓN (Derecha) ---
-        preview_tab = QTabWidget()
-        preview_tab.setMinimumWidth(600)
-
-        # Pestaña de Previsualización
-        preview_widget = QWidget()
-        preview_widget.setStyleSheet("background-color: #ffffff;")
-        preview_layout = QVBoxLayout(preview_widget)
-        preview_label_title = QLabel("👁️ Previsualización en Tiempo Real")
-        preview_label_title.setStyleSheet("color: #000000; background-color: transparent;")
-        preview_layout.addWidget(preview_label_title)
-        self.preview_label = QLabel("Cargue una plantilla PDF para ver la previsualización.")
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumHeight(400)
-        self.preview_label.setStyleSheet("border: 2px solid #ccc; background-color: #f8f9fa; border-radius: 8px; padding: 20px; font-size: 11pt; color: #000000;")
-        preview_layout.addWidget(self.preview_label, 1)
-
-        # Pestaña de Log
-        log_widget = QWidget()
-        log_widget.setStyleSheet("background-color: #ffffff;")
-        log_layout = QVBoxLayout(log_widget)
-        log_label_title = QLabel("📝 Registro de Actividad")
-        log_label_title.setStyleSheet("color: #000000; background-color: transparent;")
-        log_layout.addWidget(log_label_title)
-        self.log_box = QTextEdit()
-        self.log_box.setReadOnly(True)
-        self.log_box.setStyleSheet("font-family: 'Consolas', 'Monaco', monospace; font-size: 10pt; color: #000000; background-color: #ffffff;")
-        log_layout.addWidget(self.log_box)
-
-        preview_tab.addTab(preview_widget, "👁️ Previsualización")
-        preview_tab.addTab(log_widget, "📝 Registro")
-
-        # Añadir paneles al contenido principal
-        content_layout.addWidget(control_scroll, 1)
-        content_layout.addWidget(preview_tab, 2)
-        
-        # Añadir contenido al layout principal
-        main_layout.addWidget(content_widget, 1)
-
-    def _create_section_label(self, text):
-        label = QLabel(text)
-        label.setStyleSheet("font-weight: bold; margin-top: 15px; margin-bottom: 8px; font-size: 12pt; color: #000000; background-color: transparent;")
-        return label
-    
     def _get_font_combo(self):
-        combo = QComboBox()
-        combo.setMinimumHeight(30)
+        combo = ModernComboBox()
         fonts_dir = resource_path(os.path.join('assets', 'fonts'))
         if os.path.exists(fonts_dir):
             fonts = [os.path.splitext(f)[0] for f in os.listdir(fonts_dir) if f.lower().endswith(('.ttf', '.otf'))]
@@ -1425,9 +1306,10 @@ class App(QMainWindow):
                 img = QImage(pix_data.samples, pix_data.width, pix_data.height, 
                            pix_data.stride, QImage.Format.Format_RGB888)
                 pixmap = QPixmap.fromImage(img)
+                # Redimensionar a la mitad del tamaño original
                 scaled_pixmap = pixmap.scaled(
-                    self.preview_label.width() - 40, 
-                    self.preview_label.height() - 40,
+                    self.preview_label.width() // 2, 
+                    self.preview_label.height() // 2,
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )
@@ -1435,9 +1317,28 @@ class App(QMainWindow):
         except Exception as e:
             self.preview_label.setText(f"Error en previsualización:\n{str(e)}")
 
+    def apply_validation_text(self):
+        """Aplica la leyenda de validación personalizada"""
+        validation_text = self.validation_text_entry.text().strip()
+        if not validation_text:
+            QMessageBox.warning(self, "Campo vacío", "Por favor ingrese un texto para la leyenda de validación.")
+            return
+        
+        try:
+            from signature import set_validation_text
+            set_validation_text(validation_text)
+            self.validation_status_label.setText(f"Leyenda actual: {validation_text}")
+            self.log_message(f"🏷️ Leyenda de validación actualizada: {validation_text}")
+            
+            QMessageBox.information(self, "Leyenda Aplicada", 
+                                  f"La leyenda de validación ha sido actualizada:\n\n{validation_text}\n\n"
+                                  f"Esta leyenda aparecerá en todas las constancias generadas a partir de ahora.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo aplicar la leyenda: {str(e)}")
+
     def validate_configuration(self):
         self.validation_label.setText("🔄 Validando configuración...")
-        self.validation_label.setStyleSheet("padding: 8px; border: 1px solid #FFEAA7; border-radius: 4px; background-color: #FFF3CD; color: #856404;")
+        self.validation_label.setStyleSheet("padding: 12px; border: 1px solid #FFEAA7; border-radius: 6px; background-color: #FFF3CD; color: #856404;")
         
         validation_results = []
         
@@ -1483,10 +1384,10 @@ class App(QMainWindow):
         has_errors = any("❌" in result for result in validation_results)
         
         if not has_errors:
-            self.validation_label.setStyleSheet("padding: 8px; border: 1px solid #C3E6CB; border-radius: 4px; background-color: #D4EDDA; color: #155724;")
+            self.validation_label.setStyleSheet("padding: 12px; border: 1px solid #C3E6CB; border-radius: 6px; background-color: #D4EDDA; color: #155724;")
             self.validation_label.setText("✅ Configuración válida\n" + result_text)
         else:
-            self.validation_label.setStyleSheet("padding: 8px; border: 1px solid #F5C6CB; border-radius: 4px; background-color: #F8D7DA; color: #721c24;")
+            self.validation_label.setStyleSheet("padding: 12px; border: 1px solid #F5C6CB; border-radius: 6px; background-color: #F8D7DA; color: #721c24;")
             self.validation_label.setText("❌ Problemas encontrados\n" + result_text)
         
         self.log_message("🔍 Validación completada")
@@ -1532,7 +1433,6 @@ class App(QMainWindow):
         self.worker.start()
         self.log_message("🚀 Iniciando generación de constancias...")
 
-
     def cancel_generation(self):
         if hasattr(self, 'worker') and self.worker.isRunning():
             self.worker.stop()
@@ -1555,6 +1455,14 @@ class App(QMainWindow):
         self.log_box.append(f"[{timestamp}] {message}")
         self.log_box.verticalScrollBar().setValue(self.log_box.verticalScrollBar().maximum())
 
+    def open_email_sender(self):
+        """Abre el diálogo para enviar constancias por correo"""
+        try:
+            self.email_dialog = EmailSenderDialog(self)
+            self.email_dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo abrir el envío de correos: {str(e)}")
+
     def resizeEvent(self, event):
         """Redimensiona el banner cuando cambia el tamaño de la ventana"""
         super().resizeEvent(event)
@@ -1568,8 +1476,16 @@ class App(QMainWindow):
         
         self.update_preview()
 
-if __name__ == "__main__":
+def main():
     app = QApplication(sys.argv)
+    
+    # Configurar estilo de la aplicación
+    app.setStyle('Fusion')
+    
     window = App()
     window.show()
+    
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()
