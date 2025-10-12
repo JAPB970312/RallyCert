@@ -11,7 +11,22 @@ from PyQt6.QtCore import QThread, pyqtSignal
 REPO_OWNER = "JAPB970312"
 REPO_NAME = "RallyCert"
 BRANCH = "main"
-COMMIT_FILE = "commit.sha"
+import os
+import sys
+
+def get_persistent_dir():
+    """Obtiene una carpeta persistente donde guardar configuraciones y versión."""
+    base_dir = os.path.join(os.path.expanduser("~"), ".RallyCert")
+    os.makedirs(base_dir, exist_ok=True)
+    return base_dir
+
+def get_app_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+# Guardar el commit en carpeta persistente del usuario, no dentro del ejecutable
+COMMIT_FILE = os.path.join(get_persistent_dir(), "commit.sha")
 
 def get_app_dir():
     if getattr(sys, 'frozen', False):
