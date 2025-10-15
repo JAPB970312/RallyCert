@@ -5,6 +5,7 @@ import shutil
 import zipfile
 import requests
 import tempfile
+import subprocess
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -22,10 +23,15 @@ def get_app_dir():
         # Modo desarrollo
         return os.path.dirname(os.path.abspath(__file__))
 
+def get_user_data_dir():
+    """Obtiene el directorio de datos de usuario (AppData)"""
+    app_data_dir = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "RallyCert")
+    os.makedirs(app_data_dir, exist_ok=True)
+    return app_data_dir
+
 def get_commit_file_path():
-    """Obtiene la ruta del archivo de commit"""
-    app_dir = get_app_dir()
-    return os.path.join(app_dir, "commit.sha")
+    """Obtiene la ruta del archivo de commit en AppData"""
+    return os.path.join(get_user_data_dir(), "commit.sha")
 
 def get_local_commit_sha():
     """Obtiene la versión local instalada"""
@@ -40,6 +46,30 @@ def get_local_commit_sha():
         print(f"⚠️ No se pudo leer la versión local: {e}")
         return "Error"
 
+def is_admin_installation():
+    """Verifica si la aplicación está instalada en una ubicación que requiere admin"""
+    app_dir = get_app_dir()
+    protected_paths = [
+        os.environ.get('PROGRAMFILES', 'C:\\Program Files'),
+        os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)'),
+        os.environ.get('PROGRAMW6432', 'C:\\Program Files')
+    ]
+    
+    for path in protected_paths:
+        if path and app_dir.startswith(path):
+            return True
+    return False
+
+def run_as_admin(command):
+    """Ejecuta un comando con permisos de administrador"""
+    try:
+        import ctypes
+        if ctypes.windll.shell32.ShellExecuteW(None, "runas", "cmd.exe", f'/c "{command}"', None, 1) > 32:
+            return True
+        return False
+    except Exception:
+        return False
+
 class UpdateThread(QThread):
     """Hilo para manejar la actualización en segundo plano"""
     update_finished = pyqtSignal(bool, str)
@@ -51,6 +81,7 @@ class UpdateThread(QThread):
         self.remote_sha = None
         self.local_sha = None
         self._is_running = True
+        self.is_admin_install = is_admin_installation()
     
     def run(self):
         try:
@@ -63,13 +94,16 @@ class UpdateThread(QThread):
                 return
                 
             if update_needed:
+                if self.is_admin_install:
+                    self.progress_update.emit("⚠️ Instalación detectada en ubicación protegida...")
+                    
                 self.progress_update.emit("📥 Descargando actualización...")
                 success = self.download_and_extract_update(remote_sha)
                 if success:
                     self.save_local_commit_sha(remote_sha)
-                    self.update_finished.emit(True, "✅ Actualización completada correctamente. Reinicie la aplicación.")
+                    self.update_finished.emit(True, "✅ Actualización completada correctamente.")
                 else:
-                    self.update_finished.emit(False, "❌ Error durante la descarga o instalación")
+                    self.update_finished.emit(False, "❌ Error durante la actualización")
             else:
                 self.update_finished.emit(True, "✅ Ya tienes la versión más reciente.")
                 
@@ -89,7 +123,6 @@ class UpdateThread(QThread):
             return None
             
         try:
-            # Usar la API de GitHub para obtener información del último commit
             url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/commits/{BRANCH}"
             headers = {
                 'User-Agent': 'RallyCert-Updater',
@@ -150,11 +183,9 @@ class UpdateThread(QThread):
         self.remote_sha = self.get_remote_commit_sha()
         self.local_sha = self.get_local_commit_sha()
         
-        # Si no se pudo obtener el SHA remoto, no hay actualización
         if not self.remote_sha:
             return False, None
             
-        # Si no hay SHA local, considerar que necesita actualización
         if not self.local_sha:
             return True, self.remote_sha
             
@@ -172,10 +203,7 @@ class UpdateThread(QThread):
         if not self._is_running:
             return False
             
-        # URL directa al ZIP del repositorio
         zip_url = f"https://github.com/{REPO_OWNER}/{REPO_NAME}/archive/refs/heads/{BRANCH}.zip"
-        
-        # Crear directorios temporales
         temp_dir = tempfile.mkdtemp(prefix="rallycert_update_")
         zip_path = os.path.join(temp_dir, "update.zip")
         extract_dir = os.path.join(temp_dir, "extracted")
@@ -186,13 +214,12 @@ class UpdateThread(QThread):
                 
             self.progress_update.emit("📥 Descargando actualización desde GitHub...")
             
-            # Descargar con manejo de errores
+            # Descargar archivo
             try:
                 headers = {'User-Agent': 'RallyCert-Updater'}
                 response = requests.get(zip_url, headers=headers, timeout=60, stream=True)
                 response.raise_for_status()
                 
-                # Guardar archivo ZIP
                 with open(zip_path, "wb") as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         if not self._is_running:
@@ -202,12 +229,6 @@ class UpdateThread(QThread):
                             
                 self.progress_update.emit(f"✅ Descarga completada ({os.path.getsize(zip_path) // 1024} KB)")
                 
-            except requests.exceptions.Timeout:
-                self.progress_update.emit("⏰ Timeout al descargar actualización")
-                return False
-            except requests.exceptions.ConnectionError:
-                self.progress_update.emit("🌐 Error de conexión durante descarga")
-                return False
             except Exception as e:
                 self.progress_update.emit(f"❌ Error en descarga: {e}")
                 return False
@@ -221,20 +242,30 @@ class UpdateThread(QThread):
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(extract_dir)
 
-            # La estructura extraída es: extracted/REPO_NAME-BRANCH/*
             extracted_folder = os.path.join(extract_dir, f"{REPO_NAME}-{BRANCH}")
             
             if not os.path.exists(extracted_folder):
                 self.progress_update.emit("❌ Estructura de archivos incorrecta")
                 return False
 
-            self.progress_update.emit("🔄 Copiando archivos actualizados...")
+            self.progress_update.emit("🔄 Aplicando actualización...")
             
-            # Lista de archivos/carpetas a excluir de la actualización
+            # Para instalaciones con admin, usar método especial
+            if self.is_admin_install:
+                return self.update_with_admin_privileges(extracted_folder, temp_dir)
+            else:
+                return self.update_normal(extracted_folder, temp_dir)
+
+        except Exception as e:
+            self.progress_update.emit(f"❌ Error durante la actualización: {e}")
+            return False
+
+    def update_normal(self, extracted_folder, temp_dir):
+        """Actualización normal para ubicaciones sin protección"""
+        try:
             exclude_files = ['commit.sha', 'config.ini', 'user_settings.json', 'keys']
             exclude_folders = ['__pycache__', '.git', 'output', 'temp', 'venv', '.github']
             
-            # Función para copiar archivos de manera segura
             def copy_files(src, dst):
                 for item in os.listdir(src):
                     if not self._is_running:
@@ -243,7 +274,6 @@ class UpdateThread(QThread):
                     src_path = os.path.join(src, item)
                     dst_path = os.path.join(dst, item)
                     
-                    # Saltar archivos/carpetas excluidos
                     if item in exclude_files or item in exclude_folders:
                         continue
                     
@@ -254,172 +284,166 @@ class UpdateThread(QThread):
                             if not copy_files(src_path, dst_path):
                                 return False
                         else:
-                            # Crear directorio padre si no existe
                             os.makedirs(os.path.dirname(dst_path), exist_ok=True)
                             shutil.copy2(src_path, dst_path)
                             self.progress_update.emit(f"  📄 {item}")
                     except Exception as e:
                         self.progress_update.emit(f"⚠️ Error copiando {item}: {e}")
-                        # Continuar con otros archivos
                         continue
                 return True
 
-            # Copiar archivos
             if not copy_files(extracted_folder, self.target_dir):
                 return False
 
-            self.progress_update.emit("✅ Archivos copiados correctamente")
+            self.progress_update.emit("✅ Archivos actualizados correctamente")
             return True
 
         except Exception as e:
-            self.progress_update.emit(f"❌ Error durante la actualización: {e}")
+            self.progress_update.emit(f"❌ Error actualizando archivos: {e}")
             return False
         finally:
-            # Limpieza de archivos temporales
             self.cleanup_temp_files(temp_dir)
 
+    def update_with_admin_privileges(self, extracted_folder, temp_dir):
+        """Actualización para instalaciones que requieren admin"""
+        try:
+            # Crear script batch para actualización
+            batch_script = os.path.join(temp_dir, "update.bat")
+            log_file = os.path.join(temp_dir, "update.log")
+            
+            with open(batch_script, "w") as f:
+                f.write(f"""@echo off
+echo Iniciando actualización de RallyCert...
+echo %date% %time% > "{log_file}"
+
+REM Copiar archivos actualizados
+xcopy "{extracted_folder}\\*" "{self.target_dir}" /E /Y /I /Q
+if %errorlevel% neq 0 (
+    echo ERROR: No se pudieron copiar los archivos >> "{log_file}"
+    exit /b 1
+)
+
+echo Archivos actualizados correctamente >> "{log_file}"
+echo Actualización completada exitosamente.
+timeout /t 2 /nobreak >nul
+""")
+            
+            # Ejecutar con privilegios de administrador
+            self.progress_update.emit("🛡️ Solicitando permisos de administrador...")
+            
+            import ctypes
+            result = ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", "cmd.exe", f'/c "{batch_script}"', None, 0
+            )
+            
+            if result > 32:
+                self.progress_update.emit("✅ Actualización iniciada con permisos de administrador")
+                return True
+            else:
+                self.progress_update.emit("❌ No se pudieron obtener permisos de administrador")
+                return False
+                
+        except Exception as e:
+            self.progress_update.emit(f"❌ Error en actualización con admin: {e}")
+            return False
+
     def cleanup_temp_files(self, temp_dir):
-        """Limpia archivos temporales de manera segura"""
+        """Limpia archivos temporales"""
         try:
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
-                self.progress_update.emit("🧹 Archivos temporales eliminados")
-        except Exception as e:
-            self.progress_update.emit(f"⚠️ Error limpiando temporales: {e}")
+        except Exception:
+            pass
 
 
 def prompt_user_for_update(remote_sha, local_sha):
-    """Muestra un cuadro de diálogo para solicitar autorización."""
+    """Muestra diálogo para confirmar actualización"""
     msg = QMessageBox()
     msg.setWindowTitle("Actualización disponible")
     msg.setIcon(QMessageBox.Icon.Question)
     
-    message_text = f"""
+    message = f"""
 Se ha detectado una nueva versión de RallyCert.
 
 Versión actual: {local_sha[:7] if local_sha else 'Ninguna'}
 Nueva versión: {remote_sha[:7]}
 
 ¿Desea descargar e instalar la actualización ahora?
-
-• La aplicación se cerrará automáticamente
-• Se reiniciará después de la actualización
-• Sus configuraciones se mantendrán
 """
     
-    msg.setText(message_text)
-    msg.setStandardButtons(
-        QMessageBox.StandardButton.Yes | 
-        QMessageBox.StandardButton.No
-    )
+    if is_admin_installation():
+        message += "\n\n⚠️ Se solicitarán permisos de administrador para completar la actualización."
+    
+    msg.setText(message)
+    msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
     msg.setDefaultButton(QMessageBox.StandardButton.Yes)
     
-    # Aplicar estilo consistente
-    msg.setStyleSheet("""
-        QMessageBox {
-            background-color: #f8f9fa;
-            color: #333333;
-        }
-        QMessageBox QLabel {
-            color: #333333;
-        }
-        QMessageBox QPushButton {
-            background-color: #4a90e2;
-            color: white;
-            border-radius: 6px;
-            padding: 8px 16px;
-            font-weight: bold;
-            min-width: 80px;
-        }
-        QMessageBox QPushButton:hover {
-            background-color: #357abd;
-        }
-    """)
-    
-    respuesta = msg.exec()
-    return respuesta == QMessageBox.StandardButton.Yes
+    return msg.exec() == QMessageBox.StandardButton.Yes
 
 
-# Variable global para mantener referencia al hilo
+# Variable global para el hilo de actualización
 _update_thread = None
 
-def auto_update(app=None, target_dir=None):
-    """Ejecuta la verificación y actualización completa con PyQt6."""
+def auto_update(app=None):
+    """Función principal de actualización automática"""
     global _update_thread
     
-    # Si estamos en un ejecutable empaquetado, verificar actualizaciones
-    if getattr(sys, 'frozen', False):
-        print("📦 Ejecutable empaquetado - Verificando actualizaciones...")
-    else:
-        print("🔧 Modo desarrollo - Verificando actualizaciones...")
-    
     try:
-        # Verificación rápida sin hilo primero
-        print("🔍 Verificando actualizaciones...")
-        
-        # Crear instancia temporal para verificación
-        temp_updater = UpdateThread(target_dir)
+        # Verificación rápida
+        temp_updater = UpdateThread()
         remote_sha = temp_updater.get_remote_commit_sha()
         local_sha = temp_updater.get_local_commit_sha()
         
         if not remote_sha:
-            print("⚠️ No se pudo conectar con GitHub para verificar actualizaciones")
             return
         
         update_needed = remote_sha != local_sha
         
-        if update_needed:
-            print(f"🔄 Actualización disponible: {local_sha[:7] if local_sha else 'Ninguna'} → {remote_sha[:7]}")
+        if update_needed and prompt_user_for_update(remote_sha, local_sha):
+            _update_thread = UpdateThread()
             
-            # Preguntar al usuario
-            if prompt_user_for_update(remote_sha, local_sha):
-                # Crear y ejecutar hilo de actualización
-                _update_thread = UpdateThread(target_dir)
+            def on_finished(success, message):
+                global _update_thread
+                print(message)
                 
-                def on_update_finished(success, message):
-                    global _update_thread
-                    print(message)
+                if success:
+                    msg = QMessageBox()
+                    msg.setWindowTitle("Actualización")
+                    msg.setIcon(QMessageBox.Icon.Information)
                     
-                    if success:
-                        # Mostrar mensaje de éxito
-                        msg = QMessageBox()
-                        msg.setWindowTitle("Actualización completada")
-                        msg.setIcon(QMessageBox.Icon.Information)
-                        msg.setText(f"{message}\n\nLa aplicación se cerrará ahora.")
-                        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-                        msg.exec()
-                        
-                        # Cerrar la aplicación para aplicar cambios
-                        if app:
-                            app.quit()
+                    if is_admin_installation():
+                        msg.setText("✅ Actualización iniciada. Se requieren permisos de administrador.\n\nLa aplicación se cerrará.")
                     else:
-                        # Mostrar error
-                        msg = QMessageBox()
-                        msg.setWindowTitle("Error de actualización")
-                        msg.setIcon(QMessageBox.Icon.Critical)
-                        msg.setText(message)
-                        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-                        msg.exec()
+                        msg.setText("✅ Actualización completada.\n\nLa aplicación se cerrará.")
                     
-                    # Limpiar referencia al hilo
-                    _update_thread = None
+                    msg.exec()
+                    
+                    if app:
+                        app.quit()
+                else:
+                    msg = QMessageBox()
+                    msg.setWindowTitle("Error")
+                    msg.setIcon(QMessageBox.Icon.Critical)
+                    msg.setText(message)
+                    msg.exec()
                 
-                def on_progress_update(message):
-                    print(f"🔄 {message}")
-                
-                _update_thread.update_finished.connect(on_update_finished)
-                _update_thread.progress_update.connect(on_progress_update)
-                _update_thread.start()
-            else:
-                print("❌ Actualización cancelada por el usuario.")
-        else:
-            print("✅ RallyCert ya está actualizado.")
+                _update_thread = None
+            
+            def on_progress(message):
+                print(f"🔄 {message}")
+            
+            _update_thread.update_finished.connect(on_finished)
+            _update_thread.progress_update.connect(on_progress)
+            _update_thread.start()
             
     except Exception as e:
-        print(f"❌ Error en el proceso de actualización: {e}")
+        print(f"❌ Error en actualización automática: {e}")
 
 
 if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    auto_update(app)
+    sys.exit(app.exec())
     # Para testing
     app = QApplication(sys.argv)
     auto_update(app)
