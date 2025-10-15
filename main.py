@@ -55,6 +55,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    # Ejecutar aplicación
-    exit_code = app.exec()
-    sys.exit(exit_code)
