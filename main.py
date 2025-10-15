@@ -3,24 +3,9 @@ import sys
 import os
 from PyQt6.QtWidgets import QApplication
 from ui import App
-from auto_updater import auto_update
+from auto_updater import auto_update, get_local_commit_sha
 
-def get_local_commit_sha():
-    """Lee la versión instalada desde la carpeta persistente del usuario."""
-    try:
-        base_dir = os.path.join(os.path.expanduser("~"), ".RallyCert")
-        commit_file = os.path.join(base_dir, "commit.sha")
-        if os.path.exists(commit_file):
-            with open(commit_file, "r", encoding="utf-8") as f:
-                sha = f.read().strip()
-                if sha:
-                    return sha[:7]  # SHA abreviado
-        return "Desconocida"
-    except Exception as e:
-        print(f"⚠️ No se pudo leer la versión local: {e}")
-        return "Error"
-
-if __name__ == '__main__':
+def main():
     # Cambiar al directorio del script
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     
@@ -64,6 +49,12 @@ if __name__ == '__main__':
     window.setWindowTitle(f"RallyCert — v{version_local}")
     window.show()
     
+    # Ejecutar aplicación
+    exit_code = app.exec()
+    sys.exit(exit_code)
+
+if __name__ == '__main__':
+    main()
     # Ejecutar aplicación
     exit_code = app.exec()
     sys.exit(exit_code)
