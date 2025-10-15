@@ -14,7 +14,7 @@ Este software está diseñado para uso **institucional interno**, permitiendo a 
 
 ## 🚀 Instrucciones básicas de uso
 
-1. Ejecuta el archivo `ui.py` en un entorno con soporte PyQt6.
+1. Ejecuta el archivo `main.py` en un entorno con soporte PyQt6.
 2. Carga una plantilla de constancia.
 3. Carga el archivo Excel con los datos de los participantes.
 4. Asigna las columnas correspondientes (nombre, evento, archivo).
