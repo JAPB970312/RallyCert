@@ -28,24 +28,91 @@ class ModernButton(QPushButton):
         super().__init__(text, parent)
         self.setMinimumHeight(35)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # Estilo claro para botones
+        self.setStyleSheet("""
+            ModernButton {
+                background-color: #4a90e2;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 16px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            ModernButton:hover {
+                background-color: #357abd;
+            }
+            ModernButton:pressed {
+                background-color: #2d6da3;
+            }
+            ModernButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
 
 class ModernLineEdit(QLineEdit):
     """Campo de texto moderno"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(35)
+        self.setStyleSheet("""
+            ModernLineEdit {
+                background-color: white;
+                color: #333333;
+                border: 2px solid #e1e5e9;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 14px;
+                selection-background-color: #4a90e2;
+            }
+            ModernLineEdit:focus {
+                border-color: #4a90e2;
+                background-color: #f8f9fa;
+            }
+        """)
 
 class ModernComboBox(QComboBox):
     """Combo box moderno"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(35)
+        self.setStyleSheet("""
+            ModernComboBox {
+                background-color: white;
+                color: #333333;
+                border: 2px solid #e1e5e9;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 14px;
+            }
+            ModernComboBox:focus {
+                border-color: #4a90e2;
+            }
+            ModernComboBox::drop-down {
+                border: none;
+            }
+            ModernComboBox QAbstractItemView {
+                background-color: white;
+                border: 1px solid #e1e5e9;
+                selection-background-color: #4a90e2;
+                selection-color: white;
+            }
+        """)
 
 class ModernLabel(QLabel):
     """Etiqueta moderna"""
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
         self.setWordWrap(True)
+        self.setStyleSheet("""
+            ModernLabel {
+                background-color: transparent;
+                color: #333333;
+                font-size: 14px;
+                padding: 2px;
+            }
+        """)
 
 class SectionWidget(QFrame):
     """Widget de sección con título y contenido"""
@@ -83,6 +150,9 @@ class SectionWidget(QFrame):
     
     def addWidget(self, widget):
         self.content_layout.addWidget(widget)
+    
+    def addLayout(self, layout):
+        self.content_layout.addLayout(layout)
 
 class EmailSenderDialog(QDialog):
     def __init__(self, parent=None):
@@ -97,29 +167,29 @@ class EmailSenderDialog(QDialog):
         self.setup_ui()
 
     def setup_ui(self):
-        # FONDO MODERNO CON COLOR AZUL CLARO
+        # FONDO CLARO MODERNO
         self.setStyleSheet("""
             QDialog {
-                background-color: #f0f8ff;
-                color: #2c3e50;
+                background-color: #f8f9fa;
+                color: #333333;
             }
             QLabel {
                 background-color: transparent;
-                color: #2c3e50;
+                color: #333333;
             }
             QLineEdit, QComboBox, QSpinBox {
                 background-color: white;
-                color: #2c3e50;
-                border: 2px solid #e9ecef;
+                color: #333333;
+                border: 2px solid #e1e5e9;
                 border-radius: 6px;
                 padding: 8px;
                 font-size: 14px;
             }
             QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
-                border-color: #007bff;
+                border-color: #4a90e2;
             }
             QPushButton {
-                background-color: #6c757d;
+                background-color: #4a90e2;
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -128,30 +198,46 @@ class EmailSenderDialog(QDialog):
                 font-size: 14px;
             }
             QPushButton:hover {
-                background-color: #5a6268;
+                background-color: #357abd;
             }
             QPushButton:pressed {
-                background-color: #545b62;
+                background-color: #2d6da3;
             }
             QTextEdit {
                 background-color: white;
-                color: #2c3e50;
-                border: 2px solid #e9ecef;
+                color: #333333;
+                border: 2px solid #e1e5e9;
                 border-radius: 6px;
                 padding: 8px;
                 font-size: 14px;
             }
             QProgressBar {
-                border: 2px solid #e9ecef;
+                border: 2px solid #e1e5e9;
                 border-radius: 6px;
                 background-color: white;
                 text-align: center;
-                color: #2c3e50;
+                color: #333333;
                 height: 20px;
             }
             QProgressBar::chunk {
-                background-color: #007bff;
+                background-color: #4a90e2;
                 border-radius: 4px;
+            }
+            QCheckBox {
+                spacing: 8px;
+                font-size: 14px;
+                color: #333333;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 3px;
+                border: 2px solid #6c757d;
+                background-color: white;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #4a90e2;
+                border-color: #4a90e2;
             }
         """)
 
@@ -195,7 +281,7 @@ class EmailSenderDialog(QDialog):
         self.sender_name_entry.textChanged.connect(self.validate_form)
         email_form.addRow("Nombre del remitente:", self.sender_name_entry)
         
-        email_section.content_layout.addLayout(email_form)
+        email_section.addLayout(email_form)
         content_layout.addWidget(email_section)
 
         # Selección de archivos
@@ -219,7 +305,7 @@ class EmailSenderDialog(QDialog):
         excel_layout.addWidget(self.btn_select_excel)
         files_form.addRow("Archivo Excel:", excel_layout)
         
-        files_section.content_layout.addLayout(files_form)
+        files_section.addLayout(files_form)
         content_layout.addWidget(files_section)
 
         # Configuración de columnas
@@ -239,7 +325,7 @@ class EmailSenderDialog(QDialog):
         self.filename_column_combo.currentTextChanged.connect(self.validate_form)
         columns_form.addRow("Columna Archivo PDF:", self.filename_column_combo)
         
-        columns_section.content_layout.addLayout(columns_form)
+        columns_section.addLayout(columns_form)
         content_layout.addWidget(columns_section)
 
         # Contenido del correo
@@ -253,11 +339,11 @@ class EmailSenderDialog(QDialog):
         self.subject_entry.textChanged.connect(self.validate_form)
         subject_layout.addWidget(subject_label)
         subject_layout.addWidget(self.subject_entry)
-        content_section.content_layout.addLayout(subject_layout)
+        content_section.addLayout(subject_layout)
 
         # Cuerpo del mensaje
         body_label = ModernLabel("Cuerpo del mensaje:")
-        content_section.content_layout.addWidget(body_label)
+        content_section.addWidget(body_label)
 
         self.body_text = QTextEdit()
         self.body_text.setMinimumHeight(200)
@@ -288,7 +374,7 @@ class EmailSenderDialog(QDialog):
         self.body_text.setHtml(default_body)
         self.body_text.textChanged.connect(self.validate_form)
 
-        content_section.content_layout.addWidget(self.body_text)
+        content_section.addWidget(self.body_text)
 
         content_layout.addWidget(content_section)
         content_layout.addStretch()
@@ -699,18 +785,18 @@ class App(QMainWindow):
         self.setMinimumSize(1200, 700)
         self.setWindowIcon(QIcon(resource_path('assets/icon.ico')))
 
-        # ESTILOS MODERNOS CON FONDO AZUL CLARO
+        # ESTILOS MODERNOS CON FONDO CLARO
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #f0f8ff;
-                color: #2c3e50;
+                background-color: #f8f9fa;
+                color: #333333;
             }
             QWidget {
                 background-color: transparent;
-                color: #2c3e50;
+                color: #333333;
             }
             QPushButton {
-                background-color: #6c757d;
+                background-color: #4a90e2;
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -719,32 +805,32 @@ class App(QMainWindow):
                 font-size: 14px;
             }
             QPushButton:hover {
-                background-color: #5a6268;
+                background-color: #357abd;
             }
             QPushButton:pressed {
-                background-color: #545b62;
+                background-color: #2d6da3;
             }
             QLineEdit, QComboBox, QSpinBox {
                 background-color: white;
-                color: #2c3e50;
-                border: 2px solid #e9ecef;
+                color: #333333;
+                border: 2px solid #e1e5e9;
                 border-radius: 6px;
                 padding: 8px;
                 font-size: 14px;
             }
             QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
-                border-color: #007bff;
+                border-color: #4a90e2;
             }
             QTextEdit {
                 background-color: white;
-                color: #2c3e50;
-                border: 2px solid #e9ecef;
+                color: #333333;
+                border: 2px solid #e1e5e9;
                 border-radius: 6px;
                 padding: 8px;
                 font-size: 14px;
             }
             QTabWidget::pane {
-                border: 2px solid #e9ecef;
+                border: 2px solid #e1e5e9;
                 border-radius: 8px;
                 background-color: white;
             }
@@ -759,19 +845,19 @@ class App(QMainWindow):
             }
             QTabBar::tab:selected {
                 background-color: white;
-                color: #007bff;
-                border-bottom: 2px solid #007bff;
+                color: #4a90e2;
+                border-bottom: 2px solid #4a90e2;
             }
             QProgressBar {
-                border: 2px solid #e9ecef;
+                border: 2px solid #e1e5e9;
                 border-radius: 6px;
                 background-color: white;
                 text-align: center;
-                color: #2c3e50;
+                color: #333333;
                 height: 20px;
             }
             QProgressBar::chunk {
-                background-color: #007bff;
+                background-color: #4a90e2;
                 border-radius: 4px;
             }
             QScrollArea {
@@ -781,16 +867,18 @@ class App(QMainWindow):
             QCheckBox {
                 spacing: 8px;
                 font-size: 14px;
+                color: #333333;
             }
             QCheckBox::indicator {
                 width: 18px;
                 height: 18px;
                 border-radius: 3px;
                 border: 2px solid #6c757d;
+                background-color: white;
             }
             QCheckBox::indicator:checked {
-                background-color: #007bff;
-                border-color: #007bff;
+                background-color: #4a90e2;
+                border-color: #4a90e2;
             }
         """)
 
@@ -831,7 +919,7 @@ class App(QMainWindow):
         else:
             self.banner_label.setText("RallyCert - Generador de Constancias")
             self.banner_label.setStyleSheet("""
-                color: #2c3e50; 
+                color: #f7ead8; 
                 font-weight: bold; 
                 font-size: 24px;
                 background-color: transparent;
@@ -871,6 +959,7 @@ class App(QMainWindow):
             ("📊 Cargar Participantes", self.create_excel_section()),
             ("🔗 Asignar Columnas", self.create_mapping_section()),
             ("🎯 Estilo de Texto", self.create_style_section()),
+            ("🔐 Firma Digital", self.create_signature_section()),
             ("🏷️ Leyenda de Validación", self.create_validation_section()),
             ("✅ Validación", self.create_validation_check_section()),
             ("⚙️ Configuración", self.create_config_section()),
@@ -879,7 +968,7 @@ class App(QMainWindow):
         
         for title, widget in sections:
             section = SectionWidget(title)
-            section.content_layout.addWidget(widget)
+            section.addWidget(widget)
             control_scroll_layout.addWidget(section)
         
         control_scroll_layout.addStretch()
@@ -895,7 +984,7 @@ class App(QMainWindow):
         preview_tabs = QTabWidget()
         preview_tabs.setStyleSheet("""
             QTabWidget::pane {
-                border: 2px solid #e9ecef;
+                border: 2px solid #e1e5e9;
                 border-radius: 8px;
                 background-color: white;
             }
@@ -940,7 +1029,7 @@ class App(QMainWindow):
             font-size: 12px; 
             color: #2c3e50; 
             background-color: white;
-            border: 1px solid #e9ecef;
+            border: 1px solid #e1e5e9;
             border-radius: 6px;
         """)
         log_layout.addWidget(self.log_box)
@@ -1080,6 +1169,51 @@ class App(QMainWindow):
         self.font_combo_2.currentTextChanged.connect(self.update_preview)
         self.font_size_spin_2.valueChanged.connect(self.update_preview)
         self.bold_check_2.stateChanged.connect(self.update_preview)
+        
+        return widget
+
+    def create_signature_section(self):
+        """Crea la sección para controlar la firma digital y QR"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        # Checkbox para habilitar/deshabilitar firma digital
+        self.signature_checkbox = QCheckBox("🔐 Habilitar Firma Digital y Código QR")
+        self.signature_checkbox.setChecked(True)  # Por defecto activado
+        self.signature_checkbox.setStyleSheet("""
+            QCheckBox {
+                font-weight: bold;
+                font-size: 14px;
+                color: #2c3e50;
+                padding: 8px;
+            }
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #28a745;
+                border: 2px solid #218838;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #dc3545;
+                border: 2px solid #c82333;
+            }
+        """)
+        layout.addWidget(self.signature_checkbox)
+        
+        # Información sobre la función
+        info_label = ModernLabel("Cuando está activado: Se inserta código QR con firma digital\nCuando está desactivado: Se genera constancia sin QR ni firma")
+        info_label.setStyleSheet("""
+            padding: 8px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            color: #495057;
+            font-size: 12px;
+        """)
+        layout.addWidget(info_label)
         
         return widget
 
@@ -1402,7 +1536,7 @@ class App(QMainWindow):
             return
         
         if not self.combo_text1.currentText() or not self.combo_text2.currentText():
-            QMessageBox.warning(self, "Configuración Incompleta", "Seleccione las columnas para ambos placeholders.")
+            QMessageBox.warning(self, "Configuración Incompleta", "Seleccionen las columnas para ambos placeholders.")
             return
         
         output_dir = QFileDialog.getExistingDirectory(self, "Seleccionar Carpeta de Destino")
@@ -1417,6 +1551,10 @@ class App(QMainWindow):
             "{{TEXT_2}}": self.combo_text2.currentText()
         }
         export_mode = self.export_mode_combo.currentText()
+        
+        # Obtener estado de la firma digital
+        enable_signature = self.signature_checkbox.isChecked()
+        
         # Columna seleccionada para nombrar archivos (si está habilitada)
         filename_column = self.combo_filename.currentText() if getattr(self, 'combo_filename', None) and self.combo_filename.isEnabled() else None
 
@@ -1424,14 +1562,17 @@ class App(QMainWindow):
         self.btn_cancel.setEnabled(True)
         self.progress_bar.setValue(0)
 
-        self.worker = Worker(self.template_path, self.excel_data, output_dir, font_map, placeholder_map, export_mode, filename_column)
-
-        
+        # Pasar el parámetro enable_signature al worker
+        self.worker = Worker(self.template_path, self.excel_data, output_dir, font_map, 
+                            placeholder_map, export_mode, filename_column, enable_signature)
+    
         self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.log.connect(self.log_message)
         self.worker.finished.connect(self.on_generation_finished)
         self.worker.start()
-        self.log_message("🚀 Iniciando generación de constancias...")
+        
+        mode_text = "con firma digital" if enable_signature else "sin firma digital"
+        self.log_message(f"🚀 Iniciando generación de constancias {mode_text}...")
 
     def cancel_generation(self):
         if hasattr(self, 'worker') and self.worker.isRunning():
