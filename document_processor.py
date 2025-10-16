@@ -1,4 +1,4 @@
-# document_processor.py
+# document_processor.py (modificado)
 import fitz  # PyMuPDF
 from docx import Document
 from docx.shared import Pt, RGBColor
@@ -44,7 +44,12 @@ class PdfProcessor(BaseProcessor):
         super().__init__(template_path)
         self.doc = fitz.open(template_path)
 
-    def _get_text_fit_info(self, rect, text, font_info):
+    def _get_text_fit_info(self, rect, text, font_info, align_center=True):
+        """
+        Calcula posición y tamaño para texto
+        Args:
+            align_center: Si es True, centra el texto. Si es False, alinea a la izquierda
+        """
         font_name = self._get_pdf_font(font_info['family'], font_info['bold'])
         max_width = rect.width * 0.98
         current_font_size = font_info['size']
@@ -60,7 +65,13 @@ class PdfProcessor(BaseProcessor):
                 final_font_size -= 1
         
         tw = fitz.get_text_length(text, fontname=font_name, fontsize=final_font_size)
-        x_insert = rect.x0 + (rect.width - tw) / 2
+        
+        # Diferente alineación según el parámetro
+        if align_center:
+            x_insert = rect.x0 + (rect.width - tw) / 2  # Centrado
+        else:
+            x_insert = rect.x0 + 5  # Alineado a la izquierda con pequeño margen
+        
         font_ascender = 0.8
         y_insert = rect.y0 + (rect.height - (final_font_size * font_ascender)) / 2 + final_font_size
 
@@ -69,14 +80,77 @@ class PdfProcessor(BaseProcessor):
     def process(self, data_map: dict, font_map: dict):
         self.doc = fitz.open(self.template_path)
         for page in self.doc:
-            for placeholder, value in data_map.items():
+            # Buscar TODOS los placeholders, incluyendo en cuadros de texto
+            all_text_instances = {}
+            
+            for placeholder in data_map.keys():
+                # Buscar en texto normal
                 text_instances = page.search_for(placeholder)
-                font_info = font_map.get(placeholder, {'family': 'Arial', 'size': 12, 'bold': False})
-                for inst in text_instances:
-                    page.add_redact_annot(inst)
-                    page.apply_redactions()
-                    x_insert, y_insert, final_size, font_name = self._get_text_fit_info(inst, value, font_info)
-                    page.insert_text((x_insert, y_insert), value, fontsize=final_size, fontname=font_name, color=(0, 0, 0))
+                if text_instances:
+                    all_text_instances[placeholder] = text_instances
+                
+                # Buscar en cuadros de texto (widget annotations)
+                try:
+                    for widget in page.widgets():
+                        if widget.field_type == fitz.PDF_WIDGET_TYPE_TEXT:
+                            if placeholder in widget.field_value or placeholder in widget.field_name:
+                                # Crear un rectángulo aproximado para el cuadro de texto
+                                rect = widget.rect
+                                all_text_instances.setdefault(placeholder, []).append(rect)
+                except Exception:
+                    pass
+            
+            # Procesar cada placeholder encontrado
+            for placeholder, instances in all_text_instances.items():
+                value = data_map[placeholder]
+                font_info = font_map.get(placeholder, {'family': 'Arial', 'size': 12, 'bold': False, 'color': (0, 0, 0)})
+                
+                # Determinar alineación: centrado para TEXT_1 y TEXT_2, izquierda para FOLIO
+                is_folio = placeholder == "{{FOLIO}}"
+                align_center = not is_folio  # Centrado para todo excepto FOLIO
+                
+                for inst in instances:
+                    try:
+                        page.add_redact_annot(inst)
+                        page.apply_redactions()
+                        
+                        x_insert, y_insert, final_size, font_name = self._get_text_fit_info(
+                            inst, value, font_info, align_center=align_center
+                        )
+                        
+                        # Obtener color del font_info
+                        color = self._parse_color(font_info.get('color', (0, 0, 0)))
+                        
+                        page.insert_text(
+                            (x_insert, y_insert),
+                            value,
+                            fontname=font_name,
+                            fontsize=final_size,
+                            color=color
+                        )
+                    except Exception as e:
+                        print(f"⚠️ Error procesando {placeholder}: {e}")
+                        continue
+
+    def _parse_color(self, color):
+        """Convierte el color a formato compatible con PyMuPDF"""
+        if isinstance(color, str) and color.startswith('#'):
+            # Convertir hex a RGB (valores 0-255)
+            color = color.lstrip('#')
+            r = int(color[0:2], 16)
+            g = int(color[2:4], 16)
+            b = int(color[4:6], 16)
+            return (r/255, g/255, b/255)  # Convertir a valores 0-1 para PyMuPDF
+        elif isinstance(color, tuple):
+            # Si ya es una tupla, asegurarse de que esté en formato correcto
+            if all(isinstance(c, (int, float)) for c in color):
+                if all(0 <= c <= 1 for c in color):
+                    # Ya está en formato 0-1
+                    return color
+                elif all(0 <= c <= 255 for c in color):
+                    # Convertir de 0-255 a 0-1
+                    return (color[0]/255, color[1]/255, color[2]/255)
+        return (0, 0, 0)  # Negro por defecto
 
     def save_as_pdf(self, output_path: str):
         try:
@@ -90,15 +164,34 @@ class PdfProcessor(BaseProcessor):
         temp_doc = fitz.open(self.template_path)
         try:
             page = temp_doc.load_page(0)
-            for placeholder, value in data_map.items():
-                text_instances = page.search_for(placeholder)
-                font_info = font_map.get(placeholder, {'family': 'Arial', 'size': 12, 'bold': False})
-                if text_instances:
-                    inst = text_instances[0]
+            
+            # Buscar todos los placeholders para la previsualización
+            all_instances = {}
+            for placeholder in data_map.keys():
+                instances = page.search_for(placeholder)
+                if instances:
+                    all_instances[placeholder] = instances
+            
+            for placeholder, instances in all_instances.items():
+                value = data_map[placeholder]
+                font_info = font_map.get(placeholder, {'family': 'Arial', 'size': 12, 'bold': False, 'color': (0, 0, 0)})
+                
+                # Determinar alineación
+                is_folio = placeholder == "{{FOLIO}}"
+                align_center = not is_folio
+                
+                if instances:
+                    inst = instances[0]
                     page.add_redact_annot(inst)
                     page.apply_redactions()
-                    x_insert, y_insert, final_size, font_name = self._get_text_fit_info(inst, value, font_info)
-                    page.insert_text((x_insert, y_insert), value, fontsize=final_size, fontname=font_name, color=(0,0,0))
+                    
+                    x_insert, y_insert, final_size, font_name = self._get_text_fit_info(
+                        inst, value, font_info, align_center=align_center
+                    )
+                    
+                    color = self._parse_color(font_info.get('color', (0, 0, 0)))
+                    
+                    page.insert_text((x_insert, y_insert), value, fontsize=final_size, fontname=font_name, color=color)
 
             pix = page.get_pixmap()
             return pix
@@ -158,29 +251,58 @@ class DocxProcessor(OfficeProcessor):
     def process(self, data_map: dict, font_map: dict): 
         self.doc = Document(self.template_path)
         
-        # Obtener configuración de fuentes específica para cada placeholder
-        font_info_1 = font_map.get("{{TEXT_1}}", {'family': 'Arial', 'size': 24, 'bold': False})
-        font_info_2 = font_map.get("{{TEXT_2}}", {'family': 'Arial', 'size': 18, 'bold': False})
-
+        # Procesar todos los placeholders en el data_map
         for placeholder, value in data_map.items():
+            font_info = font_map.get(placeholder, {'family': 'Arial', 'size': 12, 'bold': False, 'color': '#000000'})
+            
+            # Determinar alineación
+            is_folio = placeholder == "{{FOLIO}}"
+            
             for paragraph in self.doc.paragraphs:
                 if placeholder in paragraph.text:
-                    paragraph.text = ""
-                    run = paragraph.add_run(str(value))
-                    font = run.font
-                    
-                    # Aplicar configuración específica según el placeholder
-                    if placeholder == "{{TEXT_1}}":
-                        font.name = font_info_1['family']
-                        font.size = Pt(font_info_1['size'])
-                        font.bold = font_info_1['bold']
-                    elif placeholder == "{{TEXT_2}}":
-                        font.name = font_info_2['family']
-                        font.size = Pt(font_info_2['size'])
-                        font.bold = font_info_2['bold']
-                    
-                    font.color.rgb = RGBColor(0, 0, 0)
-                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    # Reemplazar el texto manteniendo el formato
+                    self._replace_text_in_paragraph(paragraph, placeholder, str(value), font_info, is_folio)
+            
+            # Procesar también en tablas
+            for table in self.doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        for paragraph in cell.paragraphs:
+                            if placeholder in paragraph.text:
+                                self._replace_text_in_paragraph(paragraph, placeholder, str(value), font_info, is_folio)
+
+    def _replace_text_in_paragraph(self, paragraph, placeholder, value, font_info, is_folio):
+        """Reemplaza texto en un párrafo manteniendo el formato"""
+        if placeholder in paragraph.text:
+            # Reemplazar todo el texto del párrafo
+            original_text = paragraph.text
+            new_text = original_text.replace(placeholder, value)
+            
+            # Limpiar el párrafo y agregar nuevo texto con formato
+            paragraph.clear()
+            run = paragraph.add_run(new_text)
+            
+            # Aplicar formato
+            font = run.font
+            font.name = font_info['family']
+            font.size = Pt(font_info['size'])
+            font.bold = font_info['bold']
+            
+            # Manejar color
+            color = font_info.get('color', '#000000')
+            if isinstance(color, str) and color.startswith('#'):
+                # Convertir hex a RGB
+                color = color.lstrip('#')
+                r = int(color[0:2], 16)
+                g = int(color[2:4], 16)
+                b = int(color[4:6], 16)
+                font.color.rgb = RGBColor(r, g, b)
+            
+            # Aplicar alineación diferenciada
+            if is_folio:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT  # Folio alineado a la izquierda
+            else:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER  # TEXT_1 y TEXT_2 centrados
 
     def save_as_pdf(self, output_path: str):
         temp_dir = os.path.dirname(output_path)
@@ -221,32 +343,47 @@ class PptxProcessor(OfficeProcessor):
     def process(self, data_map: dict, font_map: dict): 
         self.doc = Presentation(self.template_path)
         
-        # Obtener configuración de fuentes específica para cada placeholder
-        font_info_1 = font_map.get("{{TEXT_1}}", {'family': 'Arial', 'size': 24, 'bold': False})
-        font_info_2 = font_map.get("{{TEXT_2}}", {'family': 'Arial', 'size': 18, 'bold': False})
-
         for placeholder, value in data_map.items():
+            font_info = font_map.get(placeholder, {'family': 'Arial', 'size': 18, 'bold': False, 'color': '#000000'})
+            
+            # Determinar alineación
+            is_folio = placeholder == "{{FOLIO}}"
+            
             for slide in self.doc.slides:
                 for shape in slide.shapes:
                     if not shape.has_text_frame:
                         continue
-                    for paragraph in shape.text_frame.paragraphs:
-                        if placeholder in paragraph.text:
-                            paragraph.text = str(value)
-                            if paragraph.runs:
-                                font = paragraph.runs[0].font
+                    
+                    # Procesar texto en formas
+                    if shape.has_text_frame:
+                        for paragraph in shape.text_frame.paragraphs:
+                            if placeholder in paragraph.text:
+                                # Reemplazar texto
+                                original_text = paragraph.text
+                                new_text = original_text.replace(placeholder, str(value))
+                                paragraph.text = new_text
                                 
-                                # Aplicar configuración específica según el placeholder
-                                if placeholder == "{{TEXT_1}}":
-                                    font.name = font_info_1['family']
-                                    font.size = PptxPt(font_info_1['size'])
-                                    font.bold = font_info_1['bold']
-                                elif placeholder == "{{TEXT_2}}":
-                                    font.name = font_info_2['family']
-                                    font.size = PptxPt(font_info_2['size'])
-                                    font.bold = font_info_2['bold']
+                                # Aplicar alineación
+                                if is_folio:
+                                    paragraph.alignment = 1  # LEFT align para folio
+                                else:
+                                    paragraph.alignment = 2  # CENTER align para TEXT_1 y TEXT_2
                                 
-                                font.color.rgb = PptxRGBColor(0, 0, 0)
+                                # Aplicar formato si hay runs
+                                if paragraph.runs:
+                                    font = paragraph.runs[0].font
+                                    font.name = font_info['family']
+                                    font.size = PptxPt(font_info['size'])
+                                    font.bold = font_info['bold']
+                                    
+                                    # Manejar color
+                                    color = font_info.get('color', '#000000')
+                                    if isinstance(color, str) and color.startswith('#'):
+                                        color = color.lstrip('#')
+                                        r = int(color[0:2], 16)
+                                        g = int(color[2:4], 16)
+                                        b = int(color[4:6], 16)
+                                        font.color.rgb = PptxRGBColor(r, g, b)
 
     def save_as_pdf(self, output_path: str):
         temp_dir = os.path.dirname(output_path)
