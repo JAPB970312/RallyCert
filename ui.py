@@ -1,13 +1,13 @@
-# ui.py
+# ui.py (completo con selección de columna de folio)
 import sys
 import os
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QFileDialog, QSpinBox, QCheckBox, QProgressBar, QMessageBox, QTextEdit, QComboBox, QFormLayout,
     QTabWidget, QSlider, QInputDialog, QScrollArea, QDialog, QLineEdit, QToolBar, QTextBrowser,
-    QSizePolicy, QGridLayout, QFrame
+    QSizePolicy, QGridLayout, QFrame, QColorDialog
 )
-from PyQt6.QtGui import QPixmap, QImage, QIcon, QTextCursor, QTextCharFormat, QTextBlockFormat, QTextFormat, QFont
+from PyQt6.QtGui import QPixmap, QImage, QIcon, QTextCursor, QTextCharFormat, QTextBlockFormat, QTextFormat, QFont, QColor
 from PyQt6.QtCore import Qt, QRegularExpression, QSize, pyqtSignal
 from datetime import datetime
 
@@ -886,6 +886,7 @@ class App(QMainWindow):
         self.template_path = ""
         self.excel_data = []
         self.excel_columns = []
+        self.folio_color = QColor("#000000")  # Color por defecto para folio
 
         # Inicializar sistemas mejorados
         self.validator = DocumentValidator()
@@ -895,7 +896,7 @@ class App(QMainWindow):
         self.setup_ui()
 
     def setup_ui(self):
-        """Configura la interfaz de usuario moderna"""
+        """Configura la interfaz de usuario moderna - CORREGIDA"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
@@ -933,24 +934,36 @@ class App(QMainWindow):
         content_container = QWidget()
         content_layout = QHBoxLayout(content_container)
         content_layout.setSpacing(15)
-        content_layout.setContentsMargins(15, 15, 15, 15)
+        content_layout.setContentsMargins(15, 15, 15, 15)  # Márgenes adecuados
         
-        # --- PANEL DE CONTROL IZQUIERDO (40%) ---
+        # --- PANEL DE CONTROL IZQUIERDO (40%) - CORREGIDO ---
         control_container = QWidget()
-        control_container.setMaximumWidth(500)
+        control_container.setMinimumWidth(350)  # Ancho mínimo reducido
+        control_container.setMaximumWidth(750)  # Ancho máximo reducido
         control_layout = QVBoxLayout(control_container)
         control_layout.setSpacing(10)
+        control_layout.setContentsMargins(0, 0, 0, 0)  # Sin márgenes negativos
         
-        # Scroll area para controles
+        # Scroll area para controles - MEJORADO
         control_scroll = QScrollArea()
         control_scroll.setWidgetResizable(True)
         control_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         control_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        control_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        control_scroll.setStyleSheet("""
+            QScrollArea {
+                background-color: transparent;
+                border: none;
+            }
+            QScrollArea > QWidget > QWidget {
+                background-color: transparent;
+            }
+        """)
         
         control_content = QWidget()
         control_scroll_layout = QVBoxLayout(control_content)
         control_scroll_layout.setSpacing(15)
-        control_scroll_layout.setContentsMargins(5, 5, 5, 5)
+        control_scroll_layout.setContentsMargins(5, 5, 5, 5)  # Márgenes internos adecuados
         
         # Secciones del panel de control
         sections = [
@@ -959,6 +972,7 @@ class App(QMainWindow):
             ("📊 Cargar Participantes", self.create_excel_section()),
             ("🔗 Asignar Columnas", self.create_mapping_section()),
             ("🎯 Estilo de Texto", self.create_style_section()),
+            ("🔢 Folio Alfanumérico", self.create_folio_section()),
             ("🔐 Firma Digital", self.create_signature_section()),
             ("🏷️ Leyenda de Validación", self.create_validation_section()),
             ("✅ Validación", self.create_validation_check_section()),
@@ -975,10 +989,11 @@ class App(QMainWindow):
         control_scroll.setWidget(control_content)
         control_layout.addWidget(control_scroll)
         
-        # --- PANEL DE PREVISUALIZACIÓN DERECHO (60%) ---
+        # --- PANEL DE PREVISUALIZACIÓN DERECHO (60%) - CORREGIDO ---
         preview_container = QWidget()
         preview_layout = QVBoxLayout(preview_container)
         preview_layout.setSpacing(10)
+        preview_layout.setContentsMargins(0, 0, 0, 0)  # Sin márgenes negativos
         
         # Tabs para previsualización y logs
         preview_tabs = QTabWidget()
@@ -990,7 +1005,7 @@ class App(QMainWindow):
             }
         """)
         
-        # Pestaña de Previsualización (más pequeña)
+        # Pestaña de Previsualización
         preview_widget = QWidget()
         preview_widget_layout = QVBoxLayout(preview_widget)
         preview_widget_layout.setContentsMargins(10, 10, 10, 10)
@@ -1039,10 +1054,10 @@ class App(QMainWindow):
         
         preview_layout.addWidget(preview_tabs)
         
-        # Añadir paneles al layout principal
-        content_layout.addWidget(control_container, 1)  # 40% del espacio
-        content_layout.addWidget(preview_container, 2)  # 60% del espacio
-        
+        # Añadir paneles al layout principal con proporciones corregidas
+        content_layout.addWidget(control_container, 70)  # 70% del espacio para controles
+        content_layout.addWidget(preview_container, 30)  # 30% del espacio para previsualización
+
         main_layout.addWidget(content_container, 1)
 
     def create_template_section(self):
@@ -1075,6 +1090,7 @@ class App(QMainWindow):
             color: #6c757d;
             font-size: 13px;
         """)
+        self.lbl_template_path.setWordWrap(True)
         layout.addWidget(self.lbl_template_path)
         
         return widget
@@ -1097,6 +1113,7 @@ class App(QMainWindow):
             color: #6c757d;
             font-size: 13px;
         """)
+        self.lbl_excel_path.setWordWrap(True)
         layout.addWidget(self.lbl_excel_path)
         
         return widget
@@ -1105,6 +1122,7 @@ class App(QMainWindow):
         widget = QWidget()
         layout = QFormLayout(widget)
         layout.setVerticalSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
         
         self.combo_text1 = ModernComboBox()
         self.combo_text2 = ModernComboBox()
@@ -1130,6 +1148,7 @@ class App(QMainWindow):
         text1_group = QWidget()
         text1_layout = QFormLayout(text1_group)
         text1_layout.setVerticalSpacing(8)
+        text1_layout.setContentsMargins(0, 0, 0, 0)
         
         self.font_combo_1 = self._get_font_combo()
         self.font_size_spin_1 = QSpinBox()
@@ -1146,6 +1165,7 @@ class App(QMainWindow):
         text2_group = QWidget()
         text2_layout = QFormLayout(text2_group)
         text2_layout.setVerticalSpacing(8)
+        text2_layout.setContentsMargins(0, 0, 0, 0)
         
         self.font_combo_2 = self._get_font_combo()
         self.font_size_spin_2 = QSpinBox()
@@ -1171,6 +1191,150 @@ class App(QMainWindow):
         self.bold_check_2.stateChanged.connect(self.update_preview)
         
         return widget
+
+    def create_folio_section(self):
+        """Crea la sección para controlar el folio alfanumérico"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        
+        # Checkbox para habilitar/deshabilitar folio
+        self.folio_checkbox = QCheckBox("🔢 Habilitar Folio Alfanumérico")
+        self.folio_checkbox.setChecked(True)
+        self.folio_checkbox.setStyleSheet("""
+            QCheckBox {
+                font-weight: bold;
+                font-size: 14px;
+                color: #2c3e50;
+                padding: 8px;
+            }
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #28a745;
+                border: 2px solid #218838;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #dc3545;
+                border: 2px solid #c82333;
+            }
+        """)
+        layout.addWidget(self.folio_checkbox)
+        
+        # Configuración de folio
+        folio_config_layout = QFormLayout()
+        folio_config_layout.setVerticalSpacing(8)
+        folio_config_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Selector de columna para folio - MEJORADO
+        folio_column_layout = QHBoxLayout()
+        folio_column_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.folio_column_combo = ModernComboBox()
+        self.folio_column_combo.setEnabled(False)
+        self.folio_column_combo.setToolTip("Seleccione la columna del Excel que contiene los folios")
+        
+        # Checkbox para usar columna personalizada o generar automáticamente
+        self.folio_auto_generate = QCheckBox("Generar automáticamente")
+        self.folio_auto_generate.setChecked(False)
+        self.folio_auto_generate.setToolTip("Si está marcado, se generarán folios automáticamente. Si no, se usarán los de la columna seleccionada")
+        
+        folio_column_layout.addWidget(self.folio_column_combo)
+        folio_column_layout.addWidget(self.folio_auto_generate)
+        
+        folio_config_layout.addRow("Columna Folio:", folio_column_layout)
+        
+        # Estilo del folio
+        folio_style_layout = QHBoxLayout()
+        folio_style_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.folio_font_combo = self._get_font_combo()
+        self.folio_font_combo.setCurrentText("Arial")
+        
+        self.folio_size_spin = QSpinBox()
+        self.folio_size_spin.setRange(8, 36)
+        self.folio_size_spin.setValue(12)
+        
+        self.folio_color_btn = ModernButton("🎨 Color")
+        self.folio_color_btn.setStyleSheet("background-color: #6c757d;")
+        self.folio_color_btn.clicked.connect(self.select_folio_color_and_update)
+        
+        self.folio_color_preview = QLabel()
+        self.folio_color_preview.setFixedSize(20, 20)
+        self.folio_color_preview.setStyleSheet("background-color: #000000; border: 1px solid #cccccc;")
+        
+        folio_style_layout.addWidget(ModernLabel("Fuente:"))
+        folio_style_layout.addWidget(self.folio_font_combo)
+        folio_style_layout.addWidget(ModernLabel("Tamaño:"))
+        folio_style_layout.addWidget(self.folio_size_spin)
+        folio_style_layout.addWidget(self.folio_color_btn)
+        folio_style_layout.addWidget(self.folio_color_preview)
+        folio_style_layout.addStretch()
+        
+        folio_config_layout.addRow("Estilo:", folio_style_layout)
+        
+        layout.addLayout(folio_config_layout)
+        
+        # CONECTAR SEÑALES
+        self.folio_checkbox.toggled.connect(self.toggle_folio_settings)
+        self.folio_font_combo.currentTextChanged.connect(self.update_preview)
+        self.folio_size_spin.valueChanged.connect(self.update_preview)
+        self.folio_auto_generate.toggled.connect(self.toggle_folio_auto_generate)
+        
+        # Información
+        info_label = ModernLabel("El folio se insertará en el placeholder {{FOLIO}} y se incluirá en el código QR.\n\n• Si 'Generar automáticamente' está marcado: Se crearán folios secuenciales\n• Si está desmarcado: Se usarán los valores de la columna seleccionada")
+        info_label.setStyleSheet("""
+            padding: 8px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            color: #495057;
+            font-size: 12px;
+        """)
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+        
+        return widget
+
+    def toggle_folio_settings(self, enabled):
+        """Habilita/deshabilita los controles de folio"""
+        self.folio_column_combo.setEnabled(enabled and not self.folio_auto_generate.isChecked())
+        self.folio_font_combo.setEnabled(enabled)
+        self.folio_size_spin.setEnabled(enabled)
+        self.folio_color_btn.setEnabled(enabled)
+        self.folio_auto_generate.setEnabled(enabled)
+        self.update_preview()
+
+    def toggle_folio_auto_generate(self, enabled):
+        """Habilita/deshabilita el combo de columna según la selección de generación automática"""
+        if enabled:
+            # Generación automática - deshabilitar selección de columna
+            self.folio_column_combo.setEnabled(False)
+            self.folio_column_combo.setStyleSheet("background-color: #f8f9fa; color: #6c757d;")
+        else:
+            # Usar columna específica - habilitar selección si el folio está activado
+            if self.folio_checkbox.isChecked():
+                self.folio_column_combo.setEnabled(True)
+                self.folio_column_combo.setStyleSheet("")
+        self.update_preview()
+
+    def select_folio_color(self):
+        """Selecciona el color para el folio"""
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.folio_color = color
+            self.folio_color_preview.setStyleSheet(f"background-color: {color.name()}; border: 1px solid #cccccc;")
+            self.update_preview()
+
+    def select_folio_color_and_update(self):
+        """Selecciona el color para el folio y actualiza el preview"""
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.folio_color = color
+            self.folio_color_preview.setStyleSheet(f"background-color: {color.name()}; border: 1px solid #cccccc;")
+            self.update_preview()
 
     def create_signature_section(self):
         """Crea la sección para controlar la firma digital y QR"""
@@ -1213,6 +1377,7 @@ class App(QMainWindow):
             color: #495057;
             font-size: 12px;
         """)
+        info_label.setWordWrap(True)
         layout.addWidget(info_label)
         
         return widget
@@ -1244,6 +1409,7 @@ class App(QMainWindow):
             color: #495057;
             font-size: 12px;
         """)
+        self.validation_status_label.setWordWrap(True)
         layout.addWidget(self.validation_status_label)
         
         return widget
@@ -1268,6 +1434,7 @@ class App(QMainWindow):
             font-size: 13px;
             min-height: 60px;
         """)
+        self.validation_label.setWordWrap(True)
         layout.addWidget(self.validation_label)
         
         return widget
@@ -1329,6 +1496,92 @@ class App(QMainWindow):
             combo.addItems(["Arial", "Times New Roman", "Courier New", "Georgia", "Verdana"])
         return combo
 
+    def _get_font_info(self, index):
+        if index == 1:
+            return {
+                'family': self.font_combo_1.currentText(),
+                'size': self.font_size_spin_1.value(),
+                'bold': self.bold_check_1.isChecked(),
+            }
+        elif index == 2:
+            return {
+                'family': self.font_combo_2.currentText(),
+                'size': self.font_size_spin_2.value(),
+                'bold': self.bold_check_2.isChecked(),
+            }
+        return {'family': 'Arial', 'size': 12, 'bold': False}
+
+    def _get_folio_font_info(self):
+        """Obtiene la configuración de fuente para el folio"""
+        return {
+            'family': self.folio_font_combo.currentText(),
+            'size': self.folio_size_spin.value(),
+            'bold': True,  # Folio siempre en negrita por defecto
+            'color': self.folio_color.name() if hasattr(self, 'folio_color') else '#000000'
+        }
+
+    def _get_font_map(self):
+        font_map = {
+            "{{TEXT_1}}": self._get_font_info(1),
+            "{{TEXT_2}}": self._get_font_info(2)
+        }
+        
+        # Agregar folio al font_map si está habilitado
+        if self.folio_checkbox.isChecked():
+            font_map["{{FOLIO}}"] = self._get_folio_font_info()
+            
+        return font_map
+
+    def update_preview(self):
+        if not self.template_path or not self.template_path.lower().endswith('.pdf'):
+            if self.template_path:
+                self.preview_label.setText("La previsualización en tiempo real solo está disponible para plantillas PDF.\n\nPara DOCX/PPTX, use la validación para verificar la configuración.")
+            else:
+                self.preview_label.setText("Cargue una plantilla PDF para ver la previsualización.")
+            return
+
+        try:
+            processor = get_processor(self.template_path)
+            if not isinstance(processor, PdfProcessor):
+                return
+
+            font_map = self._get_font_map()
+            data_map = {
+                "{{TEXT_1}}": "María González López",
+                "{{TEXT_2}}": "PROYECTO: Desarrollo Sostenible"
+            }
+            
+            # AGREGAR FOLIO AL DATA_MAP SI ESTÁ HABILITADO - PARA EL PREVIEW
+            if self.folio_checkbox.isChecked():
+                if self.folio_auto_generate.isChecked():
+                    data_map["{{FOLIO}}"] = "RALLY-2024-001234"  # Folio de ejemplo para generación automática
+                else:
+                    # Si hay una columna seleccionada, mostrar un valor de ejemplo
+                    if self.folio_column_combo.currentText():
+                        data_map["{{FOLIO}}"] = f"Folio-{self.folio_column_combo.currentText()}"
+                    else:
+                        data_map["{{FOLIO}}"] = "FOLIO-EJEMPLO"
+                
+            pix_data = processor.get_preview_pixmap(data_map, font_map)
+            if pix_data:
+                img = QImage(pix_data.samples, pix_data.width, pix_data.height, 
+                           pix_data.stride, QImage.Format.Format_RGB888)
+                pixmap = QPixmap.fromImage(img)
+                
+                # AUTO-AJUSTE CORREGIDO: Calcular tamaño manteniendo relación de aspecto
+                label_size = self.preview_label.size()
+                if label_size.width() > 0 and label_size.height() > 0:
+                    # Redimensionar manteniendo relación de aspecto
+                    scaled_pixmap = pixmap.scaled(
+                        label_size.width() - 40,  # Margen interno
+                        label_size.height() - 40,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    self.preview_label.setPixmap(scaled_pixmap)
+        except Exception as e:
+            self.preview_label.setText(f"Error en previsualización:\n{str(e)}")
+
     def load_template_presets(self):
         self.template_preset_combo.clear()
         self.template_preset_combo.addItem("-- Seleccionar plantilla predefinida --", None)
@@ -1379,9 +1632,11 @@ class App(QMainWindow):
                 self.combo_text2.addItems(self.excel_columns)
                 self.combo_text1.setEnabled(True)
                 self.combo_text2.setEnabled(True)
-                self.log_message(f"📊 Lista cargada con {len(self.excel_data)} registros.")
-                self.log_message(f"📋 Columnas detectadas: {', '.join(self.excel_columns)}")
-            
+                
+                # Actualizar selector de columna para folio
+                self.folio_column_combo.clear()
+                self.folio_column_combo.addItems(self.excel_columns)
+                
                 # Actualizar selector de columna para nombre de archivo
                 self.combo_filename.clear()
                 self.combo_filename.addItems(self.excel_columns)
@@ -1391,65 +1646,13 @@ class App(QMainWindow):
                     self.combo_filename.setCurrentIndex(self.combo_text1.currentIndex())
                 except:
                     pass
+                    
+                self.log_message(f"📊 Lista cargada con {len(self.excel_data)} registros.")
+                self.log_message(f"📋 Columnas detectadas: {', '.join(self.excel_columns)}")
+            
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Error al cargar Excel: {str(e)}")
                 self.log_message(f"❌ Error: {e}")
-
-    def _get_font_info(self, index):
-        if index == 1:
-            return {
-                'family': self.font_combo_1.currentText(),
-                'size': self.font_size_spin_1.value(),
-                'bold': self.bold_check_1.isChecked(),
-            }
-        elif index == 2:
-            return {
-                'family': self.font_combo_2.currentText(),
-                'size': self.font_size_spin_2.value(),
-                'bold': self.bold_check_2.isChecked(),
-            }
-        return {'family': 'Arial', 'size': 12, 'bold': False}
-
-    def _get_font_map(self):
-        return {
-            "{{TEXT_1}}": self._get_font_info(1),
-            "{{TEXT_2}}": self._get_font_info(2)
-        }
-
-    def update_preview(self):
-        if not self.template_path or not self.template_path.lower().endswith('.pdf'):
-            if self.template_path:
-                self.preview_label.setText("La previsualización en tiempo real solo está disponible para plantillas PDF.\n\nPara DOCX/PPTX, use la validación para verificar la configuración.")
-            else:
-                self.preview_label.setText("Cargue una plantilla PDF para ver la previsualización.")
-            return
-
-        try:
-            processor = get_processor(self.template_path)
-            if not isinstance(processor, PdfProcessor):
-                return
-
-            font_map = self._get_font_map()
-            data_map = {
-                "{{TEXT_1}}": "María González López",
-                "{{TEXT_2}}": "PROYECTO: Desarrollo Sostenible"
-            }
-            
-            pix_data = processor.get_preview_pixmap(data_map, font_map)
-            if pix_data:
-                img = QImage(pix_data.samples, pix_data.width, pix_data.height, 
-                           pix_data.stride, QImage.Format.Format_RGB888)
-                pixmap = QPixmap.fromImage(img)
-                # Redimensionar a la mitad del tamaño original
-                scaled_pixmap = pixmap.scaled(
-                    self.preview_label.width() // 2, 
-                    self.preview_label.height() // 2,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                self.preview_label.setPixmap(scaled_pixmap)
-        except Exception as e:
-            self.preview_label.setText(f"Error en previsualización:\n{str(e)}")
 
     def apply_validation_text(self):
         """Aplica la leyenda de validación personalizada"""
@@ -1503,6 +1706,17 @@ class App(QMainWindow):
         else:
             validation_results.append("❌ Mapeo de columnas incompleto")
         
+        # Validar folio
+        if self.folio_checkbox.isChecked():
+            if self.folio_auto_generate.isChecked():
+                validation_results.append("✅ Folio: Generación automática habilitada")
+            elif self.folio_column_combo.currentText():
+                validation_results.append(f"✅ Folio configurado (columna: {self.folio_column_combo.currentText()})")
+            else:
+                validation_results.append("⚠️ Folio habilitado pero sin columna seleccionada")
+        else:
+            validation_results.append("ℹ️ Folio deshabilitado")
+        
         # Validar fuentes
         available_fonts = [self.font_combo_1.itemText(i) for i in range(self.font_combo_1.count())]
         font_validation = self.validator.validate_fonts(self._get_font_map(), available_fonts)
@@ -1555,6 +1769,21 @@ class App(QMainWindow):
         # Obtener estado de la firma digital
         enable_signature = self.signature_checkbox.isChecked()
         
+        # Obtener estado del folio
+        enable_folio = self.folio_checkbox.isChecked()
+        
+        # Determinar si se usa generación automática o columna específica
+        if enable_folio:
+            if self.folio_auto_generate.isChecked():
+                folio_column = None  # Generación automática
+            else:
+                folio_column = self.folio_column_combo.currentText() if self.folio_column_combo.currentText() else None
+        else:
+            folio_column = None
+        
+        # Configuración de folio
+        folio_font_map = self._get_folio_font_info() if enable_folio else {}
+        
         # Columna seleccionada para nombrar archivos (si está habilitada)
         filename_column = self.combo_filename.currentText() if getattr(self, 'combo_filename', None) and self.combo_filename.isEnabled() else None
 
@@ -1562,9 +1791,20 @@ class App(QMainWindow):
         self.btn_cancel.setEnabled(True)
         self.progress_bar.setValue(0)
 
-        # Pasar el parámetro enable_signature al worker
-        self.worker = Worker(self.template_path, self.excel_data, output_dir, font_map, 
-                            placeholder_map, export_mode, filename_column, enable_signature)
+        # Pasar los parámetros al worker
+        self.worker = Worker(
+            self.template_path, 
+            self.excel_data, 
+            output_dir, 
+            font_map, 
+            placeholder_map, 
+            export_mode, 
+            filename_column, 
+            enable_signature,
+            enable_folio,
+            folio_column,
+            folio_font_map
+        )
     
         self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.log.connect(self.log_message)
@@ -1572,7 +1812,14 @@ class App(QMainWindow):
         self.worker.start()
         
         mode_text = "con firma digital" if enable_signature else "sin firma digital"
-        self.log_message(f"🚀 Iniciando generación de constancias {mode_text}...")
+        folio_text = "con folio" if enable_folio else "sin folio"
+        if enable_folio:
+            if self.folio_auto_generate.isChecked():
+                folio_text += " (generación automática)"
+            else:
+                folio_text += f" (columna: {folio_column})"
+                
+        self.log_message(f"🚀 Iniciando generación de constancias {mode_text} {folio_text}...")
 
     def cancel_generation(self):
         if hasattr(self, 'worker') and self.worker.isRunning():
@@ -1605,8 +1852,9 @@ class App(QMainWindow):
             QMessageBox.critical(self, "Error", f"No se pudo abrir el envío de correos: {str(e)}")
 
     def resizeEvent(self, event):
-        """Redimensiona el banner cuando cambia el tamaño de la ventana"""
+        """Redimensiona el banner y actualiza la previsualización cuando cambia el tamaño de la ventana"""
         super().resizeEvent(event)
+        
         # Actualizar banner al nuevo tamaño
         banner_pixmap = QPixmap(resource_path('assets/Banner.png'))
         if not banner_pixmap.isNull():
@@ -1615,6 +1863,7 @@ class App(QMainWindow):
             scaled_pixmap = banner_pixmap.scaledToWidth(new_width, Qt.TransformationMode.SmoothTransformation)
             self.banner_label.setPixmap(scaled_pixmap)
         
+        # Actualizar previsualización con el nuevo tamaño
         self.update_preview()
 
 def main():
