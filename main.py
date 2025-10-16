@@ -4,6 +4,8 @@ import os
 from PyQt6.QtWidgets import QApplication
 from ui import App
 from auto_updater import auto_update, get_local_commit_sha
+from folio_manager import folio_manager
+from style_manager import style_manager
 
 def main():
     # Cambiar al directorio del script
@@ -14,13 +16,13 @@ def main():
     # 🎨 Aplicar estilo claro a todos los cuadros de diálogo (QMessageBox)
     app.setStyleSheet("""
         QMessageBox {
-            background-color: #ffffff;
-            color: #333333;
+            background-color: #333333;
+            color: #ffffff;
             font-size: 14px;
         }
         QMessageBox QLabel {
-            color: #333333;
-            background-color: #ffffff;
+            color:#ffffff;
+            background-color: #333333;
         }
         QMessageBox QPushButton {
             background-color: #4a90e2;
