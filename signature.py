@@ -74,10 +74,11 @@ def load_public_key(path=PUBLIC_KEY_PATH):
 
 
 # ==============================================
-# FIRMADO
+# FIRMADO - MEJORADO PARA CARACTERES ESPECIALES
 # ==============================================
 def canonicalize_payload(payload: dict) -> bytes:
-    return json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    """Convierte el payload a JSON preservando caracteres especiales"""
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True, ensure_ascii=False).encode("utf-8")
 
 
 def sign_bytes(private_key_path: str, data: bytes) -> str:
@@ -106,15 +107,27 @@ def verify_signature(public_key_path: str, data: bytes, signature_b64: str) -> b
 
 
 # ==============================================
-# GENERAR QR
+# GENERAR QR - MEJORADO PARA CARACTERES ESPECIALES
 # ==============================================
 def make_qr_image(text: str, box_size: int = 3) -> Image.Image:
     """
     box_size reducido → QR más pequeño (~2 cm)
+    Mejorado para manejar caracteres especiales
     """
-    qr = qrcode.QRCode(border=1, box_size=box_size)
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=box_size,
+        border=1,
+    )
+    
+    # Asegurar que el texto esté en UTF-8
+    if isinstance(text, str):
+        text = text.encode('utf-8', 'ignore').decode('utf-8')
+    
     qr.add_data(text)
     qr.make(fit=True)
+    
     img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     return img
 
@@ -183,9 +196,9 @@ def embed_qr_in_docx(input_docx: str, output_docx: str, qr_img: Image.Image, met
         doc.add_picture(stream, width=Inches(0.8))
 
     try:
-        doc.core_properties.comments = json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+        doc.core_properties.comments = json.dumps(metadata, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
     except Exception:
-        doc.add_paragraph("[SIGNATURE-METADATA] " + json.dumps(metadata, separators=(",", ":"), sort_keys=True))
+        doc.add_paragraph("[SIGNATURE-METADATA] " + json.dumps(metadata, separators=(",", ":"), sort_keys=True, ensure_ascii=False))
     doc.save(output_docx)
 
 
@@ -285,7 +298,7 @@ def embed_qr_in_pdf(input_pdf: str, output_pdf: str, qr_img: Image.Image, metada
             "/Subject": "Constancia de Participación",
             "/Creator": "Sistema de Constancias Rally STEM",
             "/Producer": "RallyCert v1.0",
-            "/Signature": json.dumps(metadata, separators=(",", ":"), sort_keys=True),
+            "/Signature": json.dumps(metadata, separators=(",", ":"), sort_keys=True, ensure_ascii=False),
             "/ValidationText": validation_text  # Guardar también la leyenda en metadatos
         })
         
@@ -296,7 +309,7 @@ def embed_qr_in_pdf(input_pdf: str, output_pdf: str, qr_img: Image.Image, metada
             if hasattr(writer, 'add_metadata'):
                 custom_metadata = {
                     'RallyCert_Signature': base64.b64encode(
-                        json.dumps(metadata, separators=(",", ":"), sort_keys=True).encode()
+                        json.dumps(metadata, separators=(",", ":"), sort_keys=True, ensure_ascii=False).encode('utf-8')
                     ).decode(),
                     'RallyCert_ValidationText': validation_text
                 }
@@ -320,10 +333,10 @@ def embed_qr_in_pptx(input_pptx: str, output_pptx: str, qr_img: Image.Image, met
     stream.seek(0)
     slide.shapes.add_picture(stream, Inches(left_inches), Inches(top_inches), height=Inches(1))
     try:
-        prs.core_properties.comments = json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+        prs.core_properties.comments = json.dumps(metadata, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
     except Exception:
         tx = slide.shapes.add_textbox(Inches(0.2), Inches(0.2), Inches(2), Inches(1))
-        tx.text_frame.text = "[SIGN-METADATA] " + json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+        tx.text_frame.text = "[SIGN-METADATA] " + json.dumps(metadata, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
     prs.save(output_pptx)
 
 
@@ -354,7 +367,7 @@ def check_document_integrity(pdf_path, public_key_path=PUBLIC_KEY_PATH):
                     if 'signature' in key.lower() or 'rallycert' in key.lower():
                         try:
                             if 'RallyCert_Signature' in key:
-                                signature_data = json.loads(base64.b64decode(value).decode())
+                                signature_data = json.loads(base64.b64decode(value).decode('utf-8'))
                             elif 'RallyCert_ValidationText' in key:
                                 original_validation_text = value
                             else:
@@ -389,7 +402,13 @@ def check_document_integrity(pdf_path, public_key_path=PUBLIC_KEY_PATH):
 # FIRMA PRINCIPAL (MODIFICADA PARA ACEPTAR TEXTO PERSONALIZADO)
 # ==============================================
 def build_payload(cert_data: dict, issuer=ISSUER_STRING):
-    return {"data": cert_data, "issued_at": datetime.utcnow().isoformat() + "Z", "issuer": issuer}
+    """Construye el payload con soporte para caracteres especiales"""
+    return {
+        "data": cert_data, 
+        "issued_at": datetime.utcnow().isoformat() + "Z", 
+        "issuer": issuer,
+        "version": "2.0"
+    }
 
 
 def sign_and_embed(input_path: str, output_path: str, cert_data: dict,
@@ -411,9 +430,12 @@ def sign_and_embed(input_path: str, output_path: str, cert_data: dict,
         "payload": payload,
         "signature": signature_b64,
         "pubkey_id": os.path.basename(public_key_path),
+        "encoding": "UTF-8"
     }
 
-    qr_img = make_qr_image(json.dumps(metadata, separators=(",", ":"), sort_keys=True))
+    # Convertir metadata a JSON con soporte para caracteres especiales
+    metadata_json = json.dumps(metadata, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
+    qr_img = make_qr_image(metadata_json)
 
     ext = os.path.splitext(input_path)[1].lower()
     if ext == ".pdf":
