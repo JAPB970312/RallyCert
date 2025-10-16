@@ -1,4 +1,4 @@
-# worker.py
+# worker.py (modificado y corregido)
 import os
 import fitz
 import glob
@@ -12,7 +12,7 @@ class Worker(QThread):
     finished = pyqtSignal(str)
     log = pyqtSignal(str)
 
-    def __init__(self, template_path, excel_data, output_dir, font_map, placeholder_map, export_mode, filename_column=None, enable_signature=True):
+    def __init__(self, template_path, excel_data, output_dir, font_map, placeholder_map, export_mode, filename_column=None, enable_signature=True, enable_folio=True, folio_column=None, folio_font_map=None):
         super().__init__()
         self.template_path = template_path
         self.excel_data = excel_data
@@ -21,7 +21,10 @@ class Worker(QThread):
         self.placeholder_map = placeholder_map
         self.filename_column = filename_column
         self.export_mode = export_mode
-        self.enable_signature = enable_signature  # NUEVO PARÁMETRO
+        self.enable_signature = enable_signature
+        self.enable_folio = enable_folio
+        self.folio_column = folio_column
+        self.folio_font_map = folio_font_map or {}
         self.is_cancelled = False
 
         # Ensure keys exist (solo si la firma está habilitada)
@@ -29,14 +32,14 @@ class Worker(QThread):
             try:
                 ensure_keys(PRIVATE_KEY_PATH, PUBLIC_KEY_PATH)
             except Exception as e:
-                # no queremos detener el hilo por fallo en keys; lo registramos
                 print(f"[signature] Warning: no se pudieron generar/validar llaves: {e}")
 
     def run(self):
         try:
             total_files = len(self.excel_data)
             mode_text = "con firma digital" if self.enable_signature else "sin firma digital"
-            self.log.emit(f"Iniciando generación de {total_files} constancias {mode_text}...")
+            folio_text = "con folio" if self.enable_folio else "sin folio"
+            self.log.emit(f"Iniciando generación de {total_files} constancias {mode_text} {folio_text}...")
             self.run_single_thread(total_files)
         except Exception as e:
             self.finished.emit(f"Ocurrió un error crítico: {e}")
@@ -60,7 +63,20 @@ class Worker(QThread):
                         for placeholder, column_name in self.placeholder_map.items()
                     }
 
-                    if getattr(self, 'filename_column', None):
+                    # AGREGAR FOLIO AL DATA_MAP SI ESTÁ HABILITADO
+                    if self.enable_folio and self.folio_column:
+                        folio_value = record.get(self.folio_column, '')
+                        if folio_value:
+                            data_map["{{FOLIO}}"] = str(folio_value)
+                        else:
+                            data_map["{{FOLIO}}"] = f"FOLIO-{i+1:06d}"
+
+                    # COMBINAR FONT_MAP CON FOLIO_FONT_MAP
+                    combined_font_map = self.font_map.copy()
+                    if self.enable_folio and self.folio_font_map:
+                        combined_font_map["{{FOLIO}}"] = self.folio_font_map
+
+                    if getattr(self, 'filename_column', None) and self.filename_column:
                         name_for_file = record.get(self.filename_column, '') or data_map.get('{{TEXT_1}}', f'Constancia_{i+1}')
                     else:
                         name_for_file = data_map.get('{{TEXT_1}}', f'Constancia_{i+1}')
@@ -86,24 +102,30 @@ class Worker(QThread):
                     output_filename = os.path.join(self.output_dir, f"{candidate}.pdf")
 
                     # Generar documento y guardarlo como PDF
-                    processor.process(data_map, self.font_map)
+                    processor.process(data_map, combined_font_map)
                     processor.save_as_pdf(output_filename)
 
                     # --- FIRMAR Y EMBEDIR AUTOMÁTICAMENTE (SOLO SI ESTÁ HABILITADO) ---
                     if self.enable_signature:
+                        # Preparar datos para el código QR con soporte para caracteres especiales
                         cert_data = {
                             "nombre": data_map.get("{{TEXT_1}}", ""),
                             "evento": data_map.get("{{TEXT_2}}", ""),
-                            "folio": f"RALLY-{int(i+1):06d}",
+                            "folio": data_map.get("{{FOLIO}}", f"RALLY-{int(i+1):06d}"),
+                            "fecha_emision": datetime.now().strftime('%Y-%m-%d'),
+                            "institucion": "Universidad de Sonora"
                         }
+                        
                         try:
                             # Firmar el documento (sobrescribe el mismo archivo)
                             metadata = sign_and_embed(output_filename, output_filename, cert_data)
-                            self.log.emit(f"🔐 Firma añadida: {os.path.basename(output_filename)}")
+                            folio_display = data_map.get("{{FOLIO}}", "N/A")
+                            self.log.emit(f"🔐 Firma añadida: {os.path.basename(output_filename)} (Folio: {folio_display})")
                         except Exception as e:
                             self.log.emit(f"⚠️ No se pudo firmar {os.path.basename(output_filename)}: {e}")
                     else:
-                        self.log.emit(f"📄 Generado sin firma: {os.path.basename(output_filename)}")
+                        folio_display = data_map.get("{{FOLIO}}", "N/A") if self.enable_folio else "N/A"
+                        self.log.emit(f"📄 Generado sin firma: {os.path.basename(output_filename)} (Folio: {folio_display})")
 
                     # Si estamos combinando PDFs, insertar después de procesar
                     if self.export_mode == "Un solo PDF combinado":
@@ -112,7 +134,10 @@ class Worker(QThread):
                         temp_files_to_cleanup.append(output_filename)
 
                     success_count += 1
-                    self.log.emit(f"✅ ({i+1}/{total_files}) Generada para: {name_for_file}")
+                    
+                    # Log con información del folio
+                    folio_info = f" | Folio: {data_map.get('{{FOLIO}}', 'N/A')}" if self.enable_folio else ""
+                    self.log.emit(f"✅ ({i+1}/{total_files}) Generada para: {name_for_file}{folio_info}")
                     self.progress.emit(int(((i + 1) / total_files) * 100))
 
                 except Exception as e:
@@ -131,6 +156,8 @@ class Worker(QThread):
                                 "documento": "Constancias Combinadas",
                                 "total_constancias": success_count,
                                 "folio": f"COMBINADO-{datetime.now().strftime('%Y%m%d')}",
+                                "fecha_emision": datetime.now().strftime('%Y-%m-%d'),
+                                "institucion": "Universidad de Sonora"
                             }
                             metadata = sign_and_embed(final_path, final_path, cert_data)
                             self.log.emit(f"🔐 Firma añadida al documento combinado")
@@ -138,10 +165,12 @@ class Worker(QThread):
                             self.log.emit(f"⚠️ No se pudo firmar documento combinado: {e}")
                     
                     mode_text = "con firma digital" if self.enable_signature else "sin firma digital"
-                    self.finished.emit(f"¡Proceso completado! Se generó 1 PDF combinado {mode_text} con {success_count} constancias.")
+                    folio_text = "con folio" if self.enable_folio else "sin folio"
+                    self.finished.emit(f"¡Proceso completado! Se generó 1 PDF combinado {mode_text} {folio_text} con {success_count} constancias.")
                 else:
                     mode_text = "con firma digital" if self.enable_signature else "sin firma digital"
-                    self.finished.emit(f"¡Proceso completado! Se generaron {success_count} de {total_files} constancias {mode_text}.")
+                    folio_text = "con folio" if self.enable_folio else "sin folio"
+                    self.finished.emit(f"¡Proceso completado! Se generaron {success_count} de {total_files} constancias {mode_text} {folio_text}.")
             else:
                 self.finished.emit("Proceso detenido por el usuario.")
 
@@ -155,3 +184,8 @@ class Worker(QThread):
                     pass
             if combined_doc:
                 combined_doc.close()
+
+    def stop(self):
+        """Detiene la generación de manera segura"""
+        self.is_cancelled = True
+        self.log.emit("⏹️ Cancelando proceso...")
